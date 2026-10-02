@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SpecFlow.Api/SpecFlow.Api.csproj" />
+    <Project Path="src/SpecFlow.Domain/SpecFlow.Domain.csproj" />
+    <Project Path="src/SpecFlow.Infrastructure/SpecFlow.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SpecFlow.Api.IntegrationTests/SpecFlow.Api.IntegrationTests.csproj" />
+    <Project Path="tests/SpecFlow.Domain.Tests/SpecFlow.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
