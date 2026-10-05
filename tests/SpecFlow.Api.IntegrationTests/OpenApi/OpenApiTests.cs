@@ -7,7 +7,7 @@ namespace SpecFlow.Api.IntegrationTests.OpenApi;
 public sealed class OpenApiTests
 {
     [Fact]
-    public async Task Document_ContainsProjectOperations()
+    public async Task Document_ContainsExpectedOperations()
     {
         using var factory = new SpecFlowApiFactory();
         using var client = factory.CreateClient();
@@ -22,5 +22,14 @@ public sealed class OpenApiTests
         Assert.True(paths.GetProperty("/api/projects").TryGetProperty("post", out _));
         Assert.True(paths.GetProperty("/api/projects").TryGetProperty("get", out _));
         Assert.True(paths.GetProperty("/api/projects/{id}").TryGetProperty("get", out _));
+        Assert.True(
+            paths.GetProperty("/api/projects/{projectId}/proposals")
+                .TryGetProperty("post", out _));
+        Assert.True(
+            paths.GetProperty("/api/projects/{projectId}/proposals")
+                .TryGetProperty("get", out _));
+        Assert.True(
+            paths.GetProperty("/api/projects/{projectId}/proposals/{proposalId}")
+                .TryGetProperty("get", out _));
     }
 }

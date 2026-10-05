@@ -20,6 +20,7 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.MapOpenApi();
 app.MapProjectEndpoints();
+app.MapFeatureProposalEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

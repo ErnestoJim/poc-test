@@ -3,8 +3,11 @@
 POC en .NET para aprender un flujo de desarrollo asistido por IA con Codex,
 spec-driven development, skills y MCP.
 
-La primera fase proporciona una API para crear y consultar proyectos. La
-especificación aprobada está en [`specs/0001-projects/spec.md`](specs/0001-projects/spec.md).
+La aplicación proporciona una API para gestionar proyectos y sus propuestas de
+funcionalidades. Las especificaciones están en:
+
+- [`specs/0001-projects/spec.md`](specs/0001-projects/spec.md)
+- [`specs/0002-feature-proposals/spec.md`](specs/0002-feature-proposals/spec.md)
 
 ## Requisitos
 
@@ -40,6 +43,9 @@ Endpoints:
 - `POST /api/projects`
 - `GET /api/projects/{id}`
 - `GET /api/projects`
+- `POST /api/projects/{projectId}/proposals`
+- `GET /api/projects/{projectId}/proposals/{proposalId}`
+- `GET /api/projects/{projectId}/proposals`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -48,4 +54,13 @@ Ejemplo:
 curl --request POST http://localhost:5194/api/projects \
   --header 'Content-Type: application/json' \
   --data '{"name":"SpecFlow","description":"AI-assisted development POC"}'
+```
+
+Para crear una propuesta, sustituye `{projectId}` por el identificador de un
+proyecto existente:
+
+```bash
+curl --request POST http://localhost:5194/api/projects/{projectId}/proposals \
+  --header 'Content-Type: application/json' \
+  --data '{"title":"Add acceptance criteria","description":"Allow verifiable criteria"}'
 ```
