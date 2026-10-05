@@ -44,6 +44,16 @@ public sealed class ProjectTests
         Assert.Equal(TimeSpan.Zero, project.CreatedAtUtc.Offset);
     }
 
+    [Fact]
+    public void Create_WithSubMillisecondTimestamp_NormalizesTimestampToMilliseconds()
+    {
+        var timestamp = CreatedAtUtc.AddTicks(1_234);
+
+        var project = Project.Create(Guid.NewGuid(), "SpecFlow", null, timestamp);
+
+        Assert.Equal(CreatedAtUtc, project.CreatedAtUtc);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

@@ -17,6 +17,7 @@ builder.Services.AddDbContext<SpecFlowDbContext>(options =>
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseStatusCodePages();
 app.MapOpenApi();
 app.MapProjectEndpoints();
 

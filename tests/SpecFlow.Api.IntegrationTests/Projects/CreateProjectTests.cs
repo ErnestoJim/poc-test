@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SpecFlow.Api.Contracts.Projects;
@@ -50,6 +51,27 @@ public sealed class CreateProjectTests
         Assert.Equal("POC", project.Description);
     }
 
+    [Fact]
+    public async Task Create_WithWhitespaceDescription_PersistsNull()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+
+        using var createResponse = await client.PostAsJsonAsync(
+            "/api/projects",
+            new CreateProjectRequest("SpecFlow", "   "));
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var createdProject = await createResponse.Content.ReadFromJsonAsync<ProjectResponse>();
+        Assert.NotNull(createdProject);
+        Assert.Null(createdProject.Description);
+
+        using var getResponse = await client.GetAsync($"/api/projects/{createdProject.Id}");
+        var retrievedProject = await getResponse.Content.ReadFromJsonAsync<ProjectResponse>();
+        Assert.NotNull(retrievedProject);
+        Assert.Null(retrievedProject.Description);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -83,6 +105,61 @@ public sealed class CreateProjectTests
         var problem = await response.Content.ReadFromJsonAsync<HttpValidationProblemDetails>();
         Assert.NotNull(problem);
         Assert.Contains("description", problem.Errors);
+    }
+
+    [Fact]
+    public async Task Create_WithNameOverMaximumLength_ReturnsValidationProblem()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var request = new CreateProjectRequest(new string('a', 101), null);
+
+        using var response = await client.PostAsJsonAsync("/api/projects", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadFromJsonAsync<HttpValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("name", problem.Errors);
+    }
+
+    [Fact]
+    public async Task Create_WithUnsupportedMediaType_ReturnsProblemDetails()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        using var content = new StringContent(
+            """{"name":"SpecFlow"}""",
+            Encoding.UTF8,
+            "text/plain");
+
+        using var response = await client.PostAsync("/api/projects", content);
+
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status415UnsupportedMediaType, problem.Status);
+    }
+
+    [Fact]
+    public async Task Create_WithSubMillisecondTimestamp_ReturnsStableTimestampAfterRetrieval()
+    {
+        using var factory = new SpecFlowApiFactory();
+        factory.TimeProvider.Advance(TimeSpan.FromTicks(1_234));
+        using var client = factory.CreateClient();
+
+        using var createResponse = await client.PostAsJsonAsync(
+            "/api/projects",
+            new CreateProjectRequest("SpecFlow", null));
+        var createdProject = await createResponse.Content.ReadFromJsonAsync<ProjectResponse>();
+        Assert.NotNull(createdProject);
+
+        using var getResponse = await client.GetAsync($"/api/projects/{createdProject.Id}");
+        var retrievedProject = await getResponse.Content.ReadFromJsonAsync<ProjectResponse>();
+
+        Assert.Equal(createdProject, retrievedProject);
+        Assert.Equal(0, createdProject.CreatedAtUtc.Ticks % TimeSpan.TicksPerMillisecond);
     }
 
     [Fact]

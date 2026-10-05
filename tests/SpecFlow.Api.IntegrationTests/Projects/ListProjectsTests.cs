@@ -48,4 +48,30 @@ public sealed class ListProjectsTests
             project => Assert.Equal("Second", project.Name),
             project => Assert.Equal("First", project.Name));
     }
+
+    [Fact]
+    public async Task List_WithMatchingCreationTimes_OrdersProjectsByIdentifier()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+
+        using var firstResponse = await client.PostAsJsonAsync(
+            "/api/projects",
+            new CreateProjectRequest("First", null));
+        var firstProject = await firstResponse.Content.ReadFromJsonAsync<ProjectResponse>();
+        Assert.NotNull(firstProject);
+
+        using var secondResponse = await client.PostAsJsonAsync(
+            "/api/projects",
+            new CreateProjectRequest("Second", null));
+        var secondProject = await secondResponse.Content.ReadFromJsonAsync<ProjectResponse>();
+        Assert.NotNull(secondProject);
+
+        using var response = await client.GetAsync("/api/projects");
+        var projects = await response.Content.ReadFromJsonAsync<List<ProjectResponse>>();
+        var expectedIdentifiers = new[] { firstProject.Id, secondProject.Id }.Order().ToArray();
+
+        Assert.NotNull(projects);
+        Assert.Equal(expectedIdentifiers, projects.Select(project => project.Id));
+    }
 }

@@ -10,7 +10,13 @@ namespace SpecFlow.Api.IntegrationTests.Infrastructure;
 
 internal sealed class SpecFlowApiFactory : WebApplicationFactory<Program>
 {
+    private readonly string? _connectionString;
     private SqliteConnection? _connection;
+
+    public SpecFlowApiFactory(string? connectionString = null)
+    {
+        _connectionString = connectionString;
+    }
 
     public MutableTimeProvider TimeProvider { get; } = new(
         new DateTimeOffset(2026, 10, 2, 8, 30, 0, TimeSpan.Zero));
@@ -25,11 +31,20 @@ internal sealed class SpecFlowApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<SpecFlowDbContext>();
             services.RemoveAll<TimeProvider>();
 
-            _connection = new SqliteConnection("Data Source=:memory:");
-            _connection.Open();
+            if (_connectionString is null)
+            {
+                _connection = new SqliteConnection("Data Source=:memory:");
+                _connection.Open();
 
-            services.AddDbContext<SpecFlowDbContext>(options =>
-                options.UseSqlite(_connection));
+                services.AddDbContext<SpecFlowDbContext>(options =>
+                    options.UseSqlite(_connection));
+            }
+            else
+            {
+                services.AddDbContext<SpecFlowDbContext>(options =>
+                    options.UseSqlite(_connectionString));
+            }
+
             services.AddSingleton<TimeProvider>(TimeProvider);
         });
     }

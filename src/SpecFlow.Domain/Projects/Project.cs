@@ -52,13 +52,15 @@ public sealed class Project
 
         var trimmedName = name!.Trim();
         var trimmedDescription = NormalizeDescription(description);
+        var normalizedCreatedAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(
+            createdAtUtc.ToUnixTimeMilliseconds());
 
         return new Project(
             id,
             trimmedName,
             NormalizeName(trimmedName),
             trimmedDescription,
-            createdAtUtc.ToUniversalTime());
+            normalizedCreatedAtUtc);
     }
 
     public static Dictionary<string, string[]> Validate(string? name, string? description)
