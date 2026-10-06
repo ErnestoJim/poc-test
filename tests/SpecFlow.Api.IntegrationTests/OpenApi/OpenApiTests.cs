@@ -31,5 +31,20 @@ public sealed class OpenApiTests
         Assert.True(
             paths.GetProperty("/api/projects/{projectId}/proposals/{proposalId}")
                 .TryGetProperty("get", out _));
+        Assert.True(
+            paths.GetProperty("/api/projects/{projectId}/proposals/{proposalId}/accept")
+                .TryGetProperty("post", out _));
+        Assert.True(
+            paths.GetProperty("/api/projects/{projectId}/proposals/{proposalId}/reject")
+                .TryGetProperty("post", out _));
+
+        var responseProperties = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("FeatureProposalResponse")
+            .GetProperty("properties");
+        Assert.True(responseProperties.TryGetProperty("status", out _));
+        Assert.True(responseProperties.TryGetProperty("decidedAtUtc", out _));
+        Assert.True(responseProperties.TryGetProperty("rejectionReason", out _));
     }
 }

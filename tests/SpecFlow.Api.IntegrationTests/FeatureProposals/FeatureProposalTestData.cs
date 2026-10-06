@@ -33,4 +33,35 @@ internal static class FeatureProposalTestData
             ?? throw new InvalidOperationException(
                 "The create response did not contain a feature proposal.");
     }
+
+    public static async Task<FeatureProposalResponse> AcceptProposalAsync(
+        HttpClient client,
+        Guid projectId,
+        Guid proposalId)
+    {
+        using var response = await client.PostAsync(
+            $"/api/projects/{projectId}/proposals/{proposalId}/accept",
+            content: null);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<FeatureProposalResponse>()
+            ?? throw new InvalidOperationException(
+                "The accept response did not contain a feature proposal.");
+    }
+
+    public static async Task<FeatureProposalResponse> RejectProposalAsync(
+        HttpClient client,
+        Guid projectId,
+        Guid proposalId,
+        string reason)
+    {
+        using var response = await client.PostAsJsonAsync(
+            $"/api/projects/{projectId}/proposals/{proposalId}/reject",
+            new RejectFeatureProposalRequest(reason));
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<FeatureProposalResponse>()
+            ?? throw new InvalidOperationException(
+                "The reject response did not contain a feature proposal.");
+    }
 }

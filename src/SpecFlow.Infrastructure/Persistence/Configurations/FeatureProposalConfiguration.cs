@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SpecFlow.Domain.FeatureProposals;
 using SpecFlow.Domain.Projects;
 
@@ -9,6 +10,12 @@ internal sealed class FeatureProposalConfiguration : IEntityTypeConfiguration<Fe
 {
     public void Configure(EntityTypeBuilder<FeatureProposal> builder)
     {
+        var nullableTimestampConverter = new ValueConverter<DateTimeOffset?, long?>(
+            value => value.HasValue ? value.Value.ToUnixTimeMilliseconds() : null,
+            value => value.HasValue
+                ? DateTimeOffset.FromUnixTimeMilliseconds(value.Value)
+                : null);
+
         builder.ToTable("FeatureProposals");
 
         builder.HasKey(proposal => proposal.Id);
@@ -30,10 +37,26 @@ internal sealed class FeatureProposalConfiguration : IEntityTypeConfiguration<Fe
         builder.Property(proposal => proposal.Description)
             .HasMaxLength(FeatureProposal.MaxDescriptionLength);
 
+        builder.Property(proposal => proposal.Status)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(FeatureProposalStatus.Pending)
+            .IsRequired();
+
+        builder.Property(proposal => proposal.DecidedAtUtc)
+            .HasConversion(nullableTimestampConverter);
+
+        builder.Property(proposal => proposal.RejectionReason)
+            .HasMaxLength(FeatureProposal.MaxRejectionReasonLength);
+
         builder.Property(proposal => proposal.CreatedAtUtc)
             .HasConversion(
                 value => value.ToUnixTimeMilliseconds(),
                 value => DateTimeOffset.FromUnixTimeMilliseconds(value))
+            .IsRequired();
+
+        builder.Property(proposal => proposal.Version)
+            .IsConcurrencyToken()
             .IsRequired();
     }
 }

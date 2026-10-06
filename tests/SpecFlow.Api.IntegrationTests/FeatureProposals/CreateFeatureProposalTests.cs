@@ -31,6 +31,9 @@ public sealed class CreateFeatureProposalTests
         Assert.Equal(project.Id, createdProposal.ProjectId);
         Assert.Equal("Add acceptance criteria", createdProposal.Title);
         Assert.Equal("Allow verifiable criteria", createdProposal.Description);
+        Assert.Equal("pending", createdProposal.Status);
+        Assert.Null(createdProposal.DecidedAtUtc);
+        Assert.Null(createdProposal.RejectionReason);
         Assert.Equal(factory.TimeProvider.GetUtcNow(), createdProposal.CreatedAtUtc);
         Assert.Equal(
             $"/api/projects/{project.Id}/proposals/{createdProposal.Id}",

@@ -8,6 +8,7 @@ funcionalidades. Las especificaciones están en:
 
 - [`specs/0001-projects/spec.md`](specs/0001-projects/spec.md)
 - [`specs/0002-feature-proposals/spec.md`](specs/0002-feature-proposals/spec.md)
+- [`specs/0003-feature-proposal-lifecycle/spec.md`](specs/0003-feature-proposal-lifecycle/spec.md)
 
 ## Requisitos
 
@@ -46,6 +47,8 @@ Endpoints:
 - `POST /api/projects/{projectId}/proposals`
 - `GET /api/projects/{projectId}/proposals/{proposalId}`
 - `GET /api/projects/{projectId}/proposals`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/accept`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/reject`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -63,4 +66,17 @@ proyecto existente:
 curl --request POST http://localhost:5194/api/projects/{projectId}/proposals \
   --header 'Content-Type: application/json' \
   --data '{"title":"Add acceptance criteria","description":"Allow verifiable criteria"}'
+```
+
+Las propuestas comienzan en estado `pending`. Para aceptarlas o rechazarlas,
+sustituye también `{proposalId}` por el identificador de la propuesta:
+
+```bash
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/accept
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/reject \
+  --header 'Content-Type: application/json' \
+  --data '{"reason":"Not enough value for this project"}'
 ```

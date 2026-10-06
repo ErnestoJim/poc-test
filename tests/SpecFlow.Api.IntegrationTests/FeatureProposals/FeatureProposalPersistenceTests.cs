@@ -28,6 +28,11 @@ public sealed class FeatureProposalPersistenceTests
                     firstClient,
                     project.Id,
                     "Persistent proposal");
+                firstFactory.TimeProvider.Advance(TimeSpan.FromHours(1));
+                createdProposal = await FeatureProposalTestData.AcceptProposalAsync(
+                    firstClient,
+                    project.Id,
+                    createdProposal.Id);
             }
 
             using var secondFactory = new SpecFlowApiFactory(connectionString);

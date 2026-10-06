@@ -4,6 +4,7 @@ public sealed class FeatureProposal
 {
     public const int MaxTitleLength = 200;
     public const int MaxDescriptionLength = 4_000;
+    public const int MaxRejectionReasonLength = 1_000;
 
     private FeatureProposal()
     {
@@ -31,7 +32,15 @@ public sealed class FeatureProposal
 
     public string? Description { get; private set; }
 
+    public FeatureProposalStatus Status { get; private set; } = FeatureProposalStatus.Pending;
+
+    public DateTimeOffset? DecidedAtUtc { get; private set; }
+
+    public string? RejectionReason { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
+
+    public int Version { get; private set; }
 
     public static FeatureProposal Create(
         Guid id,
@@ -69,6 +78,32 @@ public sealed class FeatureProposal
             normalizedCreatedAtUtc);
     }
 
+    public void Accept(DateTimeOffset decidedAtUtc)
+    {
+        EnsurePending();
+
+        Status = FeatureProposalStatus.Accepted;
+        DecidedAtUtc = NormalizeTimestamp(decidedAtUtc);
+        RejectionReason = null;
+        Version++;
+    }
+
+    public void Reject(string? reason, DateTimeOffset decidedAtUtc)
+    {
+        var errors = ValidateRejectionReason(reason);
+        if (errors.Count > 0)
+        {
+            throw new ArgumentException("The rejection reason is invalid.", nameof(reason));
+        }
+
+        EnsurePending();
+
+        Status = FeatureProposalStatus.Rejected;
+        DecidedAtUtc = NormalizeTimestamp(decidedAtUtc);
+        RejectionReason = reason!.Trim();
+        Version++;
+    }
+
     public static Dictionary<string, string[]> Validate(string? title, string? description)
     {
         var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -93,6 +128,35 @@ public sealed class FeatureProposal
 
         return errors;
     }
+
+    public static Dictionary<string, string[]> ValidateRejectionReason(string? reason)
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        var trimmedReason = reason?.Trim();
+
+        if (string.IsNullOrEmpty(trimmedReason))
+        {
+            errors["reason"] = ["The rejection reason is required."];
+        }
+        else if (trimmedReason.Length > MaxRejectionReasonLength)
+        {
+            errors["reason"] =
+                [$"The rejection reason cannot exceed {MaxRejectionReasonLength} characters."];
+        }
+
+        return errors;
+    }
+
+    private void EnsurePending()
+    {
+        if (Status != FeatureProposalStatus.Pending)
+        {
+            throw new FeatureProposalTransitionException(Status);
+        }
+    }
+
+    private static DateTimeOffset NormalizeTimestamp(DateTimeOffset timestamp) =>
+        DateTimeOffset.FromUnixTimeMilliseconds(timestamp.ToUnixTimeMilliseconds());
 
     private static string? NormalizeDescription(string? description)
     {
