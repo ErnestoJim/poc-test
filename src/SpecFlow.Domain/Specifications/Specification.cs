@@ -31,6 +31,8 @@ public sealed class Specification
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
+    public int AcceptanceCriteriaVersion { get; private set; }
+
     public static Specification Create(
         Guid id,
         Guid featureProposalId,
@@ -78,6 +80,11 @@ public sealed class Specification
         Content = content!;
         UpdatedAtUtc = NormalizeTimestamp(updatedAtUtc);
         return true;
+    }
+
+    public void MarkAcceptanceCriteriaChanged()
+    {
+        AcceptanceCriteriaVersion++;
     }
 
     public static Dictionary<string, string[]> ValidateContent(string? content)

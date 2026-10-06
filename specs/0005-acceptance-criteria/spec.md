@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aprobada para implementación el 6 de octubre de 2026.
+Implementada y verificada el 6 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
 
 ## Problema
 
@@ -221,6 +222,8 @@ Errores específicos:
 - `409 Conflict` con título `Acceptance criterion already exists` si otro
   criterio de la especificación tiene contenido idéntico, incluso ante
   creaciones simultáneas.
+- `409 Conflict` con título `Acceptance criteria collection changed` si una
+  creación simultánea con otro contenido modifica posición o versión.
 - `415 Unsupported Media Type` cuando el contenido no es JSON compatible.
 
 ### Consultar un criterio
@@ -252,6 +255,8 @@ completo deseado.
   pertenece a la especificación.
 - `409 Conflict` con título `Acceptance criterion already exists` si el nuevo
   contenido duplica el de otro criterio de la especificación.
+- `409 Conflict` con título `Acceptance criterion update conflict` si el
+  criterio cambia concurrentemente durante la edición.
 - `415 Unsupported Media Type` cuando el contenido no es JSON compatible.
 
 ### Reordenar criterios
@@ -296,6 +301,8 @@ criterios. En ese caso también se devuelve `204 No Content`.
 - `400 Bad Request` si `criterionId` no es un UUID válido.
 - `404 Not Found` con título `Acceptance criterion not found` si no existe o no
   pertenece a la especificación.
+- `409 Conflict` con título `Acceptance criteria collection changed` si la
+  colección cambia concurrentemente durante la eliminación.
 
 La eliminación es permanente y no puede deshacerse mediante esta API.
 

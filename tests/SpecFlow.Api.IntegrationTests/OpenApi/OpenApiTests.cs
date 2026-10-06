@@ -62,5 +62,33 @@ public sealed class OpenApiTests
         Assert.True(specificationProperties.TryGetProperty("content", out _));
         Assert.True(specificationProperties.TryGetProperty("createdAtUtc", out _));
         Assert.True(specificationProperties.TryGetProperty("updatedAtUtc", out _));
+
+        var acceptanceCriteriaPath = paths.GetProperty(
+            "/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria");
+        Assert.True(acceptanceCriteriaPath.TryGetProperty("post", out _));
+        Assert.True(acceptanceCriteriaPath.TryGetProperty("get", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order")
+                .TryGetProperty("put", out _));
+        var acceptanceCriterionPath = paths.GetProperty(
+            "/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}");
+        Assert.True(acceptanceCriterionPath.TryGetProperty("get", out _));
+        Assert.True(acceptanceCriterionPath.TryGetProperty("put", out _));
+        Assert.True(acceptanceCriterionPath.TryGetProperty("delete", out _));
+
+        var acceptanceCriterionProperties = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("AcceptanceCriterionResponse")
+            .GetProperty("properties");
+        Assert.True(acceptanceCriterionProperties.TryGetProperty("id", out _));
+        Assert.True(acceptanceCriterionProperties.TryGetProperty("specificationId", out _));
+        Assert.True(acceptanceCriterionProperties.TryGetProperty("content", out _));
+        Assert.True(acceptanceCriterionProperties.TryGetProperty("position", out _));
+        Assert.True(acceptanceCriterionProperties.TryGetProperty("createdAtUtc", out _));
+        Assert.True(acceptanceCriterionProperties.TryGetProperty("updatedAtUtc", out _));
+        Assert.False(acceptanceCriterionProperties.TryGetProperty("contentHash", out _));
+        Assert.False(acceptanceCriterionProperties.TryGetProperty("version", out _));
     }
 }

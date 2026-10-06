@@ -111,6 +111,16 @@ public sealed class SpecificationTests
         Assert.Equal(CreatedAtUtc, specification.UpdatedAtUtc);
     }
 
+    [Fact]
+    public void MarkAcceptanceCriteriaChanged_IncrementsInternalVersion()
+    {
+        var specification = CreateSpecification();
+
+        specification.MarkAcceptanceCriteriaChanged();
+
+        Assert.Equal(1, specification.AcceptanceCriteriaVersion);
+    }
+
     private static Specification CreateSpecification() =>
         Specification.Create(
             Guid.NewGuid(),

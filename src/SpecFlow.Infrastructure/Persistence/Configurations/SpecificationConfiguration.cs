@@ -39,5 +39,9 @@ internal sealed class SpecificationConfiguration : IEntityTypeConfiguration<Spec
                 value => value.ToUnixTimeMilliseconds(),
                 value => DateTimeOffset.FromUnixTimeMilliseconds(value))
             .IsRequired();
+
+        builder.Property(specification => specification.AcceptanceCriteriaVersion)
+            .IsConcurrencyToken()
+            .IsRequired();
     }
 }

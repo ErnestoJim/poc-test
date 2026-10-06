@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SpecFlow.Domain.AcceptanceCriteria;
 using SpecFlow.Domain.FeatureProposals;
 using SpecFlow.Domain.Projects;
 using SpecFlow.Domain.Specifications;
@@ -8,6 +9,8 @@ namespace SpecFlow.Infrastructure.Persistence;
 public sealed class SpecFlowDbContext(DbContextOptions<SpecFlowDbContext> options)
     : DbContext(options)
 {
+    public DbSet<AcceptanceCriterion> AcceptanceCriteria => Set<AcceptanceCriterion>();
+
     public DbSet<FeatureProposal> FeatureProposals => Set<FeatureProposal>();
 
     public DbSet<Project> Projects => Set<Project>();

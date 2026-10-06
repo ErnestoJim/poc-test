@@ -10,6 +10,7 @@ funcionalidades. Las especificaciones están en:
 - [`specs/0002-feature-proposals/spec.md`](specs/0002-feature-proposals/spec.md)
 - [`specs/0003-feature-proposal-lifecycle/spec.md`](specs/0003-feature-proposal-lifecycle/spec.md)
 - [`specs/0004-specifications/spec.md`](specs/0004-specifications/spec.md)
+- [`specs/0005-acceptance-criteria/spec.md`](specs/0005-acceptance-criteria/spec.md)
 
 ## Requisitos
 
@@ -53,6 +54,12 @@ Endpoints:
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification`
 - `GET /api/projects/{projectId}/proposals/{proposalId}/specification`
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
+- `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
+- `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order`
+- `DELETE /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -98,4 +105,20 @@ curl --request PUT \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification \
   --header 'Content-Type: application/json' \
   --data '{"content":"# Updated specification\n\nRefined behavior."}'
+```
+
+Una especificación puede contener criterios de aceptación Markdown ordenados.
+Los criterios nuevos se añaden al final y la reordenación solo necesita sus
+identificadores:
+
+```bash
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria \
+  --header 'Content-Type: application/json' \
+  --data '{"content":"A valid request returns `201 Created`."}'
+
+curl --request PUT \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order \
+  --header 'Content-Type: application/json' \
+  --data '{"criterionIds":["{firstCriterionId}","{secondCriterionId}"]}'
 ```
