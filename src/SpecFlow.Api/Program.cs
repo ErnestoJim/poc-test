@@ -21,6 +21,7 @@ app.UseStatusCodePages();
 app.MapOpenApi();
 app.MapProjectEndpoints();
 app.MapFeatureProposalEndpoints();
+app.MapSpecificationEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

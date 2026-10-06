@@ -9,6 +9,7 @@ funcionalidades. Las especificaciones están en:
 - [`specs/0001-projects/spec.md`](specs/0001-projects/spec.md)
 - [`specs/0002-feature-proposals/spec.md`](specs/0002-feature-proposals/spec.md)
 - [`specs/0003-feature-proposal-lifecycle/spec.md`](specs/0003-feature-proposal-lifecycle/spec.md)
+- [`specs/0004-specifications/spec.md`](specs/0004-specifications/spec.md)
 
 ## Requisitos
 
@@ -49,6 +50,9 @@ Endpoints:
 - `GET /api/projects/{projectId}/proposals`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/accept`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/reject`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification`
+- `PUT /api/projects/{projectId}/proposals/{proposalId}/specification`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -79,4 +83,19 @@ curl --request POST \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/reject \
   --header 'Content-Type: application/json' \
   --data '{"reason":"Not enough value for this project"}'
+```
+
+Una propuesta aceptada puede tener una especificación en Markdown. La creación
+es explícita y `PUT` reemplaza el contenido completo:
+
+```bash
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification \
+  --header 'Content-Type: application/json' \
+  --data '{"content":"# Specification\n\n## Objective\n\nDescribe the expected behavior."}'
+
+curl --request PUT \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification \
+  --header 'Content-Type: application/json' \
+  --data '{"content":"# Updated specification\n\nRefined behavior."}'
 ```

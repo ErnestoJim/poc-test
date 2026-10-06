@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SpecFlow.Domain.FeatureProposals;
 using SpecFlow.Domain.Projects;
+using SpecFlow.Domain.Specifications;
 
 namespace SpecFlow.Infrastructure.Persistence;
 
@@ -10,6 +11,8 @@ public sealed class SpecFlowDbContext(DbContextOptions<SpecFlowDbContext> option
     public DbSet<FeatureProposal> FeatureProposals => Set<FeatureProposal>();
 
     public DbSet<Project> Projects => Set<Project>();
+
+    public DbSet<Specification> Specifications => Set<Specification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
