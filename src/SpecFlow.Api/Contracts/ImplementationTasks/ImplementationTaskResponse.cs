@@ -7,6 +7,9 @@ public sealed record ImplementationTaskResponse(
     Guid SpecificationId,
     string Title,
     string? Description,
+    string Status,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
     int Position,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc)
@@ -17,7 +20,21 @@ public sealed record ImplementationTaskResponse(
             implementationTask.SpecificationId,
             implementationTask.Title,
             implementationTask.Description,
+            ToContractValue(implementationTask.Status),
+            implementationTask.StartedAtUtc,
+            implementationTask.CompletedAtUtc,
             implementationTask.Position,
             implementationTask.CreatedAtUtc,
             implementationTask.UpdatedAtUtc);
+
+    private static string ToContractValue(ImplementationTaskStatus status) => status switch
+    {
+        ImplementationTaskStatus.Pending => "pending",
+        ImplementationTaskStatus.InProgress => "in_progress",
+        ImplementationTaskStatus.Completed => "completed",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(status),
+            status,
+            "Unknown implementation task status.")
+    };
 }

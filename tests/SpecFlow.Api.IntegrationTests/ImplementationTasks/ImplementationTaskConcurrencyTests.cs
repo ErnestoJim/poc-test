@@ -168,4 +168,64 @@ public sealed class ImplementationTaskConcurrencyTests
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
             () => secondDbContext.SaveChangesAsync());
     }
+
+    [Fact]
+    public async Task CompetingTransitionAndEdit_AreDetectedByInternalVersion()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var context = await ImplementationTaskTestData
+            .CreateSpecificationContextAsync(client);
+        var created = await ImplementationTaskTestData.CreateTaskAsync(
+            client,
+            context.Project.Id,
+            context.Proposal.Id,
+            "Original");
+        await using var firstScope = factory.Services.CreateAsyncScope();
+        await using var secondScope = factory.Services.CreateAsyncScope();
+        var firstDbContext = firstScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
+        var secondDbContext = secondScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
+        var transitionCopy = await firstDbContext.ImplementationTasks.SingleAsync(
+            implementationTask => implementationTask.Id == created.Id);
+        var editCopy = await secondDbContext.ImplementationTasks.SingleAsync(
+            implementationTask => implementationTask.Id == created.Id);
+        var timestamp = factory.TimeProvider.GetUtcNow().AddHours(1);
+
+        transitionCopy.Start(timestamp);
+        editCopy.Update("Edited", null, timestamp);
+        await firstDbContext.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
+            () => secondDbContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task CompetingTransitions_AreDetectedByInternalVersion()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var context = await ImplementationTaskTestData
+            .CreateSpecificationContextAsync(client);
+        var created = await ImplementationTaskTestData.CreateTaskAsync(
+            client,
+            context.Project.Id,
+            context.Proposal.Id,
+            "Task");
+        await using var firstScope = factory.Services.CreateAsyncScope();
+        await using var secondScope = factory.Services.CreateAsyncScope();
+        var firstDbContext = firstScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
+        var secondDbContext = secondScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
+        var firstCopy = await firstDbContext.ImplementationTasks.SingleAsync(
+            implementationTask => implementationTask.Id == created.Id);
+        var secondCopy = await secondDbContext.ImplementationTasks.SingleAsync(
+            implementationTask => implementationTask.Id == created.Id);
+        var timestamp = factory.TimeProvider.GetUtcNow().AddHours(1);
+
+        firstCopy.Start(timestamp);
+        secondCopy.Start(timestamp);
+        await firstDbContext.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
+            () => secondDbContext.SaveChangesAsync());
+    }
 }

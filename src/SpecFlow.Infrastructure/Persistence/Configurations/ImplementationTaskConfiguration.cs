@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SpecFlow.Domain.ImplementationTasks;
 using SpecFlow.Domain.Specifications;
 
@@ -10,6 +11,12 @@ internal sealed class ImplementationTaskConfiguration
 {
     public void Configure(EntityTypeBuilder<ImplementationTask> builder)
     {
+        var nullableTimestampConverter = new ValueConverter<DateTimeOffset?, long?>(
+            value => value.HasValue ? value.Value.ToUnixTimeMilliseconds() : null,
+            value => value.HasValue
+                ? DateTimeOffset.FromUnixTimeMilliseconds(value.Value)
+                : null);
+
         builder.ToTable(
             "ImplementationTasks",
             table => table.HasCheckConstraint(
@@ -36,6 +43,18 @@ internal sealed class ImplementationTaskConfiguration
 
         builder.Property(implementationTask => implementationTask.Description)
             .HasMaxLength(ImplementationTask.MaxDescriptionLength);
+
+        builder.Property(implementationTask => implementationTask.Status)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(ImplementationTaskStatus.Pending)
+            .IsRequired();
+
+        builder.Property(implementationTask => implementationTask.StartedAtUtc)
+            .HasConversion(nullableTimestampConverter);
+
+        builder.Property(implementationTask => implementationTask.CompletedAtUtc)
+            .HasConversion(nullableTimestampConverter);
 
         builder.Property(implementationTask => implementationTask.Position)
             .IsRequired();

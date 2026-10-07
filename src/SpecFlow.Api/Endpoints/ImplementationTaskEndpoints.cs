@@ -63,6 +63,20 @@ public static class ImplementationTaskEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
+        group.MapPost("/{taskId}/start", StartImplementationTaskAsync)
+            .WithName("StartImplementationTask")
+            .Produces<ImplementationTaskResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        group.MapPost("/{taskId}/complete", CompleteImplementationTaskAsync)
+            .WithName("CompleteImplementationTask")
+            .Produces<ImplementationTaskResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         return group;
     }
 
@@ -446,6 +460,94 @@ public static class ImplementationTaskEndpoints
         return Results.NoContent();
     }
 
+    private static Task<IResult> StartImplementationTaskAsync(
+        string projectId,
+        string proposalId,
+        string taskId,
+        SpecFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken) =>
+        TransitionImplementationTaskAsync(
+            projectId,
+            proposalId,
+            taskId,
+            dbContext,
+            timeProvider,
+            static (implementationTask, timestamp) => implementationTask.Start(timestamp),
+            cancellationToken);
+
+    private static Task<IResult> CompleteImplementationTaskAsync(
+        string projectId,
+        string proposalId,
+        string taskId,
+        SpecFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken) =>
+        TransitionImplementationTaskAsync(
+            projectId,
+            proposalId,
+            taskId,
+            dbContext,
+            timeProvider,
+            static (implementationTask, timestamp) => implementationTask.Complete(timestamp),
+            cancellationToken);
+
+    private static async Task<IResult> TransitionImplementationTaskAsync(
+        string projectId,
+        string proposalId,
+        string taskId,
+        SpecFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        Action<ImplementationTask, DateTimeOffset> transition,
+        CancellationToken cancellationToken)
+    {
+        var identifiers = ParseIdentifiers(projectId, proposalId, taskId);
+        if (identifiers.Error is not null)
+        {
+            return identifiers.Error;
+        }
+
+        var context = await FindSpecificationAsync(
+            identifiers.ProjectId,
+            identifiers.ProposalId,
+            dbContext,
+            tracking: false,
+            cancellationToken);
+
+        if (context.Error is not null)
+        {
+            return context.Error;
+        }
+
+        var implementationTask = await dbContext.ImplementationTasks
+            .SingleOrDefaultAsync(
+                existingTask =>
+                    existingTask.SpecificationId == context.Specification!.Id &&
+                    existingTask.Id == identifiers.TaskId,
+                cancellationToken);
+
+        if (implementationTask is null)
+        {
+            return ImplementationTaskNotFoundProblem(identifiers.TaskId);
+        }
+
+        try
+        {
+            transition(implementationTask, timeProvider.GetUtcNow());
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (ImplementationTaskTransitionException)
+        {
+            return ImplementationTaskTransitionConflictProblem(identifiers.TaskId);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ImplementationTaskTransitionConflictProblem(identifiers.TaskId);
+        }
+
+        return Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask));
+    }
+
     private static async Task<IResult> DeleteImplementationTaskAsync(
         string projectId,
         string proposalId,
@@ -775,6 +877,12 @@ public static class ImplementationTaskEndpoints
             statusCode: StatusCodes.Status409Conflict,
             title: "Implementation task update conflict",
             detail: $"Implementation task '{taskId}' changed while it was being updated.");
+
+    private static IResult ImplementationTaskTransitionConflictProblem(Guid taskId) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Implementation task transition conflict",
+            detail: $"Implementation task '{taskId}' cannot perform the requested transition.");
 
     private static IResult ImplementationTasksCollectionChangedProblem() =>
         Results.Problem(

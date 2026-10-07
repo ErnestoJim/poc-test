@@ -27,6 +27,9 @@ public sealed class ImplementationTaskTests
         Assert.Equal("Implement API", implementationTask.Title);
         Assert.Equal("IMPLEMENT API", implementationTask.NormalizedTitle);
         Assert.Equal(Description, implementationTask.Description);
+        Assert.Equal(ImplementationTaskStatus.Pending, implementationTask.Status);
+        Assert.Null(implementationTask.StartedAtUtc);
+        Assert.Null(implementationTask.CompletedAtUtc);
         Assert.Equal(1, implementationTask.Position);
         Assert.Equal(CreatedAtUtc, implementationTask.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, implementationTask.UpdatedAtUtc);
@@ -206,6 +209,106 @@ public sealed class ImplementationTaskTests
         Assert.False(changed);
         Assert.Equal(CreatedAtUtc, implementationTask.UpdatedAtUtc);
         Assert.Equal(0, implementationTask.Version);
+    }
+
+    [Fact]
+    public void Start_PendingTask_MovesToInProgressAndRecordsTimestamp()
+    {
+        var implementationTask = CreateTask();
+
+        implementationTask.Start(CreatedAtUtc.AddHours(1).AddTicks(1_234));
+
+        Assert.Equal(ImplementationTaskStatus.InProgress, implementationTask.Status);
+        Assert.Equal(CreatedAtUtc.AddHours(1), implementationTask.StartedAtUtc);
+        Assert.Null(implementationTask.CompletedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(1), implementationTask.UpdatedAtUtc);
+        Assert.Equal(1, implementationTask.Version);
+    }
+
+    [Fact]
+    public void Complete_InProgressTask_MovesToCompletedAndPreservesStart()
+    {
+        var implementationTask = CreateTask();
+        implementationTask.Start(CreatedAtUtc.AddHours(1));
+        var startedAtUtc = implementationTask.StartedAtUtc;
+
+        implementationTask.Complete(CreatedAtUtc.AddHours(2).AddTicks(1_234));
+
+        Assert.Equal(ImplementationTaskStatus.Completed, implementationTask.Status);
+        Assert.Equal(startedAtUtc, implementationTask.StartedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(2), implementationTask.CompletedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(2), implementationTask.UpdatedAtUtc);
+        Assert.Equal(2, implementationTask.Version);
+    }
+
+    [Fact]
+    public void Complete_PendingTask_ThrowsWithoutChangingTask()
+    {
+        var implementationTask = CreateTask();
+
+        var exception = Assert.Throws<ImplementationTaskTransitionException>(
+            () => implementationTask.Complete(CreatedAtUtc.AddHours(1)));
+
+        Assert.Equal(ImplementationTaskStatus.Pending, exception.CurrentStatus);
+        Assert.Equal(ImplementationTaskStatus.Completed, exception.TargetStatus);
+        Assert.Equal(ImplementationTaskStatus.Pending, implementationTask.Status);
+        Assert.Null(implementationTask.StartedAtUtc);
+        Assert.Null(implementationTask.CompletedAtUtc);
+        Assert.Equal(CreatedAtUtc, implementationTask.UpdatedAtUtc);
+        Assert.Equal(0, implementationTask.Version);
+    }
+
+    [Fact]
+    public void Start_InProgressTask_ThrowsAndPreservesFirstStart()
+    {
+        var implementationTask = CreateTask();
+        implementationTask.Start(CreatedAtUtc.AddHours(1));
+        var startedAtUtc = implementationTask.StartedAtUtc;
+
+        Assert.Throws<ImplementationTaskTransitionException>(
+            () => implementationTask.Start(CreatedAtUtc.AddHours(2)));
+
+        Assert.Equal(ImplementationTaskStatus.InProgress, implementationTask.Status);
+        Assert.Equal(startedAtUtc, implementationTask.StartedAtUtc);
+        Assert.Null(implementationTask.CompletedAtUtc);
+        Assert.Equal(1, implementationTask.Version);
+    }
+
+    [Fact]
+    public void CompletedTask_RejectsFurtherTransitions()
+    {
+        var implementationTask = CreateTask();
+        implementationTask.Start(CreatedAtUtc.AddHours(1));
+        implementationTask.Complete(CreatedAtUtc.AddHours(2));
+
+        Assert.Throws<ImplementationTaskTransitionException>(
+            () => implementationTask.Start(CreatedAtUtc.AddHours(3)));
+        Assert.Throws<ImplementationTaskTransitionException>(
+            () => implementationTask.Complete(CreatedAtUtc.AddHours(3)));
+
+        Assert.Equal(ImplementationTaskStatus.Completed, implementationTask.Status);
+        Assert.Equal(CreatedAtUtc.AddHours(1), implementationTask.StartedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(2), implementationTask.CompletedAtUtc);
+        Assert.Equal(2, implementationTask.Version);
+    }
+
+    [Fact]
+    public void UpdateAndMove_CompletedTask_PreserveLifecycle()
+    {
+        var implementationTask = CreateTask();
+        implementationTask.Start(CreatedAtUtc.AddHours(1));
+        implementationTask.Complete(CreatedAtUtc.AddHours(2));
+        var startedAtUtc = implementationTask.StartedAtUtc;
+        var completedAtUtc = implementationTask.CompletedAtUtc;
+
+        implementationTask.Update("Updated", null, CreatedAtUtc.AddHours(3));
+        implementationTask.MoveTo(2, CreatedAtUtc.AddHours(4));
+
+        Assert.Equal(ImplementationTaskStatus.Completed, implementationTask.Status);
+        Assert.Equal(startedAtUtc, implementationTask.StartedAtUtc);
+        Assert.Equal(completedAtUtc, implementationTask.CompletedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(4), implementationTask.UpdatedAtUtc);
+        Assert.Equal(4, implementationTask.Version);
     }
 
     private static ImplementationTask CreateTask() =>

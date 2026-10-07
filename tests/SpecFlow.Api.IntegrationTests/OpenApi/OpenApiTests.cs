@@ -104,6 +104,14 @@ public sealed class OpenApiTests
         Assert.True(implementationTaskPath.TryGetProperty("get", out _));
         Assert.True(implementationTaskPath.TryGetProperty("put", out _));
         Assert.True(implementationTaskPath.TryGetProperty("delete", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start")
+                .TryGetProperty("post", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete")
+                .TryGetProperty("post", out _));
 
         var implementationTaskProperties = document.RootElement
             .GetProperty("components")
@@ -114,6 +122,9 @@ public sealed class OpenApiTests
         Assert.True(implementationTaskProperties.TryGetProperty("specificationId", out _));
         Assert.True(implementationTaskProperties.TryGetProperty("title", out _));
         Assert.True(implementationTaskProperties.TryGetProperty("description", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("status", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("startedAtUtc", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("completedAtUtc", out _));
         Assert.True(implementationTaskProperties.TryGetProperty("position", out _));
         Assert.True(implementationTaskProperties.TryGetProperty("createdAtUtc", out _));
         Assert.True(implementationTaskProperties.TryGetProperty("updatedAtUtc", out _));

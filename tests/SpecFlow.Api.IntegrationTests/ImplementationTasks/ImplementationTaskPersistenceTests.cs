@@ -40,6 +40,16 @@ public sealed class ImplementationTaskPersistenceTests
                     projectId,
                     proposalId,
                     "Second");
+                await ImplementationTaskTestData.StartTaskAsync(
+                    firstClient,
+                    projectId,
+                    proposalId,
+                    second.Id);
+                second = await ImplementationTaskTestData.CompleteTaskAsync(
+                    firstClient,
+                    projectId,
+                    proposalId,
+                    second.Id);
                 using var reorderResponse = await firstClient.PutAsJsonAsync(
                     $"{ImplementationTaskTestData.TasksRoute(projectId, proposalId)}/order",
                     new ReorderImplementationTasksRequest(
@@ -60,6 +70,9 @@ public sealed class ImplementationTaskPersistenceTests
                 {
                     Assert.Equal(second.Id, implementationTask.Id);
                     Assert.Equal(1, implementationTask.Position);
+                    Assert.Equal("completed", implementationTask.Status);
+                    Assert.Equal(second.StartedAtUtc, implementationTask.StartedAtUtc);
+                    Assert.Equal(second.CompletedAtUtc, implementationTask.CompletedAtUtc);
                 },
                 implementationTask =>
                 {

@@ -45,4 +45,36 @@ internal static class ImplementationTaskTestData
 
     public static string TasksRoute(Guid projectId, Guid proposalId) =>
         $"/api/projects/{projectId}/proposals/{proposalId}/specification/tasks";
+
+    public static async Task<ImplementationTaskResponse> StartTaskAsync(
+        HttpClient client,
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId)
+    {
+        using var response = await client.PostAsync(
+            $"{TasksRoute(projectId, proposalId)}/{taskId}/start",
+            content: null);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<ImplementationTaskResponse>()
+            ?? throw new InvalidOperationException(
+                "The start response did not contain an implementation task.");
+    }
+
+    public static async Task<ImplementationTaskResponse> CompleteTaskAsync(
+        HttpClient client,
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId)
+    {
+        using var response = await client.PostAsync(
+            $"{TasksRoute(projectId, proposalId)}/{taskId}/complete",
+            content: null);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<ImplementationTaskResponse>()
+            ?? throw new InvalidOperationException(
+                "The complete response did not contain an implementation task.");
+    }
 }

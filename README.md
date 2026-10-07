@@ -12,6 +12,7 @@ funcionalidades. Las especificaciones están en:
 - [`specs/0004-specifications/spec.md`](specs/0004-specifications/spec.md)
 - [`specs/0005-acceptance-criteria/spec.md`](specs/0005-acceptance-criteria/spec.md)
 - [`specs/0006-implementation-tasks/spec.md`](specs/0006-implementation-tasks/spec.md)
+- [`specs/0007-implementation-task-lifecycle/spec.md`](specs/0007-implementation-task-lifecycle/spec.md)
 
 ## Requisitos
 
@@ -67,6 +68,8 @@ Endpoints:
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order`
 - `DELETE /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -144,4 +147,14 @@ curl --request PUT \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order \
   --header 'Content-Type: application/json' \
   --data '{"taskIds":["{firstTaskId}","{secondTaskId}"]}'
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete
 ```
+
+Las tareas comienzan en estado `pending`, pasan a `in_progress` al iniciarse y
+terminan en `completed`. Una tarea completada no puede reabrirse, aunque puede
+seguir editándose, reordenándose o eliminándose.

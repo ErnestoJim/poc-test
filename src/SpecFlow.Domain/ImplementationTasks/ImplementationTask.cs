@@ -37,6 +37,13 @@ public sealed class ImplementationTask
 
     public string? Description { get; private set; }
 
+    public ImplementationTaskStatus Status { get; private set; } =
+        ImplementationTaskStatus.Pending;
+
+    public DateTimeOffset? StartedAtUtc { get; private set; }
+
+    public DateTimeOffset? CompletedAtUtc { get; private set; }
+
     public int Position { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -139,6 +146,38 @@ public sealed class ImplementationTask
         UpdatedAtUtc = NormalizeTimestamp(updatedAtUtc);
         Version++;
         return true;
+    }
+
+    public void Start(DateTimeOffset startedAtUtc)
+    {
+        if (Status != ImplementationTaskStatus.Pending)
+        {
+            throw new ImplementationTaskTransitionException(
+                Status,
+                ImplementationTaskStatus.InProgress);
+        }
+
+        var normalizedTimestamp = NormalizeTimestamp(startedAtUtc);
+        Status = ImplementationTaskStatus.InProgress;
+        StartedAtUtc = normalizedTimestamp;
+        UpdatedAtUtc = normalizedTimestamp;
+        Version++;
+    }
+
+    public void Complete(DateTimeOffset completedAtUtc)
+    {
+        if (Status != ImplementationTaskStatus.InProgress)
+        {
+            throw new ImplementationTaskTransitionException(
+                Status,
+                ImplementationTaskStatus.Completed);
+        }
+
+        var normalizedTimestamp = NormalizeTimestamp(completedAtUtc);
+        Status = ImplementationTaskStatus.Completed;
+        CompletedAtUtc = normalizedTimestamp;
+        UpdatedAtUtc = normalizedTimestamp;
+        Version++;
     }
 
     public static Dictionary<string, string[]> Validate(string? title, string? description)

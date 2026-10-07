@@ -39,6 +39,9 @@ public sealed class CreateImplementationTaskTests
         Assert.Equal(context.Specification.Id, created.SpecificationId);
         Assert.Equal("Implement API", created.Title);
         Assert.Equal(Description, created.Description);
+        Assert.Equal("pending", created.Status);
+        Assert.Null(created.StartedAtUtc);
+        Assert.Null(created.CompletedAtUtc);
         Assert.Equal(2, created.Position);
         Assert.Equal(factory.TimeProvider.GetUtcNow(), created.CreatedAtUtc);
         Assert.Equal(created.CreatedAtUtc, created.UpdatedAtUtc);

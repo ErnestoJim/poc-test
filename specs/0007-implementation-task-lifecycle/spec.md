@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aprobada para implementación el 7 de octubre de 2026.
+Implementada y verificada el 7 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
 
 ## Problema
 
