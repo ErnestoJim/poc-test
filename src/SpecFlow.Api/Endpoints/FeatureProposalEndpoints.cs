@@ -58,12 +58,13 @@ public static class FeatureProposalEndpoints
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(projectId, out var parsedProjectId))
+        var projectIdentifier = ParseProjectIdentifier(projectId);
+        if (projectIdentifier.Error is not null)
         {
-            return InvalidIdentifierProblem(
-                "projectId",
-                "The project identifier must be a valid UUID.");
+            return projectIdentifier.Error;
         }
+
+        var parsedProjectId = projectIdentifier.ProjectId;
 
         var validationErrors = FeatureProposal.Validate(request.Title, request.Description);
         if (validationErrors.Count > 0)
@@ -76,7 +77,7 @@ public static class FeatureProposalEndpoints
 
         if (!projectExists)
         {
-            return ProjectNotFoundProblem(parsedProjectId);
+            return EndpointProblems.ProjectNotFound(parsedProjectId);
         }
 
         var proposal = FeatureProposal.Create(
@@ -102,26 +103,21 @@ public static class FeatureProposalEndpoints
         SpecFlowDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(projectId, out var parsedProjectId))
+        var identifiers = ParseIdentifiers(projectId, proposalId);
+        if (identifiers.Error is not null)
         {
-            return InvalidIdentifierProblem(
-                "projectId",
-                "The project identifier must be a valid UUID.");
+            return identifiers.Error;
         }
 
-        if (!Guid.TryParse(proposalId, out var parsedProposalId))
-        {
-            return InvalidIdentifierProblem(
-                "proposalId",
-                "The feature proposal identifier must be a valid UUID.");
-        }
+        var parsedProjectId = identifiers.ProjectId;
+        var parsedProposalId = identifiers.ProposalId;
 
         var projectExists = await dbContext.Projects
             .AnyAsync(project => project.Id == parsedProjectId, cancellationToken);
 
         if (!projectExists)
         {
-            return ProjectNotFoundProblem(parsedProjectId);
+            return EndpointProblems.ProjectNotFound(parsedProjectId);
         }
 
         var proposal = await dbContext.FeatureProposals
@@ -133,7 +129,7 @@ public static class FeatureProposalEndpoints
                 cancellationToken);
 
         return proposal is null
-            ? FeatureProposalNotFoundProblem(parsedProposalId)
+            ? EndpointProblems.FeatureProposalNotFound(parsedProposalId)
             : Results.Ok(FeatureProposalResponse.FromDomain(proposal));
     }
 
@@ -142,19 +138,20 @@ public static class FeatureProposalEndpoints
         SpecFlowDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(projectId, out var parsedProjectId))
+        var projectIdentifier = ParseProjectIdentifier(projectId);
+        if (projectIdentifier.Error is not null)
         {
-            return InvalidIdentifierProblem(
-                "projectId",
-                "The project identifier must be a valid UUID.");
+            return projectIdentifier.Error;
         }
+
+        var parsedProjectId = projectIdentifier.ProjectId;
 
         var projectExists = await dbContext.Projects
             .AnyAsync(project => project.Id == parsedProjectId, cancellationToken);
 
         if (!projectExists)
         {
-            return ProjectNotFoundProblem(parsedProjectId);
+            return EndpointProblems.ProjectNotFound(parsedProjectId);
         }
 
         var proposals = await dbContext.FeatureProposals
@@ -269,27 +266,26 @@ public static class FeatureProposalEndpoints
         Guid ProposalId,
         IResult? Error) ParseIdentifiers(string projectId, string proposalId)
     {
-        if (!Guid.TryParse(projectId, out var parsedProjectId))
+        var projectIdentifier = ParseProjectIdentifier(projectId);
+        if (projectIdentifier.Error is not null)
         {
-            return (
-                Guid.Empty,
-                Guid.Empty,
-                InvalidIdentifierProblem(
-                    "projectId",
-                    "The project identifier must be a valid UUID."));
+            return (Guid.Empty, Guid.Empty, projectIdentifier.Error);
         }
 
-        if (!Guid.TryParse(proposalId, out var parsedProposalId))
+        var proposalIdentifier = RouteIdentifierParser.ParseFeatureProposal(proposalId);
+        if (proposalIdentifier.Error is not null)
         {
-            return (
-                Guid.Empty,
-                Guid.Empty,
-                InvalidIdentifierProblem(
-                    "proposalId",
-                    "The feature proposal identifier must be a valid UUID."));
+            return (Guid.Empty, Guid.Empty, proposalIdentifier.Error);
         }
 
-        return (parsedProjectId, parsedProposalId, null);
+        return (projectIdentifier.ProjectId, proposalIdentifier.Identifier, null);
+    }
+
+    private static (Guid ProjectId, IResult? Error) ParseProjectIdentifier(string projectId)
+    {
+        var identifier = RouteIdentifierParser.ParseProject(projectId);
+
+        return (identifier.Identifier, identifier.Error);
     }
 
     private static async Task<(FeatureProposal? Proposal, IResult? Error)>
@@ -304,7 +300,7 @@ public static class FeatureProposalEndpoints
 
         if (!projectExists)
         {
-            return (null, ProjectNotFoundProblem(projectId));
+            return (null, EndpointProblems.ProjectNotFound(projectId));
         }
 
         var proposal = await dbContext.FeatureProposals
@@ -315,28 +311,9 @@ public static class FeatureProposalEndpoints
                 cancellationToken);
 
         return proposal is null
-            ? (null, FeatureProposalNotFoundProblem(proposalId))
+            ? (null, EndpointProblems.FeatureProposalNotFound(proposalId))
             : (proposal, null);
     }
-
-    private static IResult InvalidIdentifierProblem(string field, string message) =>
-        Results.ValidationProblem(
-            new Dictionary<string, string[]>(StringComparer.Ordinal)
-            {
-                [field] = [message]
-            });
-
-    private static IResult ProjectNotFoundProblem(Guid projectId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Project not found",
-            detail: $"No project with identifier '{projectId}' was found.");
-
-    private static IResult FeatureProposalNotFoundProblem(Guid proposalId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Feature proposal not found",
-            detail: $"No feature proposal with identifier '{proposalId}' was found in this project.");
 
     private static IResult FeatureProposalTransitionConflictProblem(Guid proposalId) =>
         Results.Problem(

@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aprobada para implementación el 7 de octubre de 2026.
+Implementada y verificada el 7 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
 
 ## Problema
 
@@ -373,6 +374,30 @@ concurrencia deben ejecutarse después de cada cambio.
 Helpers demasiado amplios pueden convertir las pruebas en secuencias opacas. Se
 mantendrán helpers sólo para preparación repetitiva y assertions mecánicas; la
 acción y la expectativa principal permanecerán en cada prueba.
+
+## Evidencias de cierre
+
+- Los Problem Details compartidos se centralizaron dentro del adaptador API.
+- El parseo de identificadores y sus mensajes se centralizó sin modificar las
+  claves de validación.
+- Criterios y tareas reutilizan una única resolución del contexto formado por
+  proyecto, propuesta y especificación.
+- La clasificación de violaciones de unicidad SQLite reside en Infrastructure y
+  ningún endpoint inspecciona tipos o códigos de SQLite.
+- La preparación del escenario proyecto-propuesta-especificación tiene una
+  única implementación compartida por las pruebas de criterios y tareas.
+- OpenAPI cuenta con una prueba que protege el inventario exacto de las 25
+  operaciones y sus nombres.
+- No se dividieron físicamente los handlers de criterios y tareas porque, tras
+  las extracciones, hacerlo sólo habría trasladado código sin reducir más
+  responsabilidades o acoplamiento.
+- `dotnet build SpecFlow.slnx --no-restore` terminó con cero warnings y cero
+  errores.
+- `dotnet test SpecFlow.slnx --no-build --no-restore` superó 178 pruebas de
+  integración y 77 pruebas de dominio, sin errores ni omisiones.
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` terminó
+  correctamente.
+- No se añadieron paquetes, proyectos, migraciones ni cambios de esquema.
 
 ## Decisiones propuestas para aprobación
 

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SpecFlow.Api.Contracts.Projects;
 using SpecFlow.Domain.Projects;
@@ -68,7 +67,8 @@ public static class ProjectEndpoints
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        catch (DbUpdateException exception) when (
+            PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             return DuplicateNameProblem(project.Name);
         }
@@ -82,24 +82,20 @@ public static class ProjectEndpoints
         SpecFlowDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(id, out var projectId))
+        var identifier = RouteIdentifierParser.ParseProject(id, "id");
+        if (identifier.Error is not null)
         {
-            return Results.ValidationProblem(
-                new Dictionary<string, string[]>(StringComparer.Ordinal)
-                {
-                    ["id"] = ["The project identifier must be a valid UUID."]
-                });
+            return identifier.Error;
         }
+
+        var projectId = identifier.Identifier;
 
         var project = await dbContext.Projects
             .AsNoTracking()
             .SingleOrDefaultAsync(existingProject => existingProject.Id == projectId, cancellationToken);
 
         return project is null
-            ? Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Project not found",
-                detail: $"No project with identifier '{projectId}' was found.")
+            ? EndpointProblems.ProjectNotFound(projectId)
             : Results.Ok(ProjectResponse.FromDomain(project));
     }
 
@@ -134,10 +130,4 @@ public static class ProjectEndpoints
                 }
             });
 
-    private static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
-        exception.InnerException is SqliteException
-        {
-            SqliteErrorCode: 19,
-            SqliteExtendedErrorCode: 2067
-        };
 }

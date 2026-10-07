@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SpecFlow.Api.Contracts.Specifications;
 using SpecFlow.Domain.FeatureProposals;
@@ -99,7 +98,8 @@ public static class SpecificationEndpoints
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        catch (DbUpdateException exception) when (
+            PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             return SpecificationAlreadyExistsProblem(identifiers.ProposalId);
         }
@@ -145,7 +145,7 @@ public static class SpecificationEndpoints
                 cancellationToken);
 
         return specification is null
-            ? SpecificationNotFoundProblem(identifiers.ProposalId)
+            ? EndpointProblems.SpecificationNotFound(identifiers.ProposalId)
             : Results.Ok(SpecificationResponse.FromDomain(specification));
     }
 
@@ -188,7 +188,7 @@ public static class SpecificationEndpoints
 
         if (specification is null)
         {
-            return SpecificationNotFoundProblem(identifiers.ProposalId);
+            return EndpointProblems.SpecificationNotFound(identifiers.ProposalId);
         }
 
         specification.UpdateContent(request.Content, timeProvider.GetUtcNow());
@@ -202,27 +202,19 @@ public static class SpecificationEndpoints
         Guid ProposalId,
         IResult? Error) ParseIdentifiers(string projectId, string proposalId)
     {
-        if (!Guid.TryParse(projectId, out var parsedProjectId))
+        var projectIdentifier = RouteIdentifierParser.ParseProject(projectId);
+        if (projectIdentifier.Error is not null)
         {
-            return (
-                Guid.Empty,
-                Guid.Empty,
-                InvalidIdentifierProblem(
-                    "projectId",
-                    "The project identifier must be a valid UUID."));
+            return (Guid.Empty, Guid.Empty, projectIdentifier.Error);
         }
 
-        if (!Guid.TryParse(proposalId, out var parsedProposalId))
+        var proposalIdentifier = RouteIdentifierParser.ParseFeatureProposal(proposalId);
+        if (proposalIdentifier.Error is not null)
         {
-            return (
-                Guid.Empty,
-                Guid.Empty,
-                InvalidIdentifierProblem(
-                    "proposalId",
-                    "The feature proposal identifier must be a valid UUID."));
+            return (Guid.Empty, Guid.Empty, proposalIdentifier.Error);
         }
 
-        return (parsedProjectId, parsedProposalId, null);
+        return (projectIdentifier.Identifier, proposalIdentifier.Identifier, null);
     }
 
     private static async Task<(FeatureProposal? Proposal, IResult? Error)> FindProposalAsync(
@@ -236,7 +228,7 @@ public static class SpecificationEndpoints
 
         if (!projectExists)
         {
-            return (null, ProjectNotFoundProblem(projectId));
+            return (null, EndpointProblems.ProjectNotFound(projectId));
         }
 
         var proposal = await dbContext.FeatureProposals
@@ -248,28 +240,9 @@ public static class SpecificationEndpoints
                 cancellationToken);
 
         return proposal is null
-            ? (null, FeatureProposalNotFoundProblem(proposalId))
+            ? (null, EndpointProblems.FeatureProposalNotFound(proposalId))
             : (proposal, null);
     }
-
-    private static IResult InvalidIdentifierProblem(string field, string message) =>
-        Results.ValidationProblem(
-            new Dictionary<string, string[]>(StringComparer.Ordinal)
-            {
-                [field] = [message]
-            });
-
-    private static IResult ProjectNotFoundProblem(Guid projectId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Project not found",
-            detail: $"No project with identifier '{projectId}' was found.");
-
-    private static IResult FeatureProposalNotFoundProblem(Guid proposalId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Feature proposal not found",
-            detail: $"No feature proposal with identifier '{proposalId}' was found in this project.");
 
     private static IResult FeatureProposalNotAcceptedProblem(Guid proposalId) =>
         Results.Problem(
@@ -283,16 +256,4 @@ public static class SpecificationEndpoints
             title: "Specification already exists",
             detail: $"Feature proposal '{proposalId}' already has a specification.");
 
-    private static IResult SpecificationNotFoundProblem(Guid proposalId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Specification not found",
-            detail: $"Feature proposal '{proposalId}' does not have a specification.");
-
-    private static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
-        exception.InnerException is SqliteException
-        {
-            SqliteErrorCode: 19,
-            SqliteExtendedErrorCode: 2067
-        };
 }

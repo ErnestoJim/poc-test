@@ -7,6 +7,63 @@ namespace SpecFlow.Api.IntegrationTests.OpenApi;
 public sealed class OpenApiTests
 {
     [Fact]
+    public async Task Document_ContainsOnlyExpectedNamedOperations()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/openapi/v1.json");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var documentStream = await response.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(documentStream);
+        var paths = document.RootElement.GetProperty("paths");
+        (string Path, string Method, string OperationId)[] expectedOperations =
+        [
+            ("/api/projects", "post", "CreateProject"),
+            ("/api/projects", "get", "ListProjects"),
+            ("/api/projects/{id}", "get", "GetProject"),
+            ("/api/projects/{projectId}/proposals", "post", "CreateFeatureProposal"),
+            ("/api/projects/{projectId}/proposals", "get", "ListFeatureProposals"),
+            ("/api/projects/{projectId}/proposals/{proposalId}", "get", "GetFeatureProposal"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/accept", "post", "AcceptFeatureProposal"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/reject", "post", "RejectFeatureProposal"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification", "post", "CreateSpecification"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification", "get", "GetSpecification"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification", "put", "UpdateSpecification"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "post", "CreateAcceptanceCriterion"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "get", "ListAcceptanceCriteria"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order", "put", "ReorderAcceptanceCriteria"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "get", "GetAcceptanceCriterion"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "put", "UpdateAcceptanceCriterion"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "delete", "DeleteAcceptanceCriterion"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks", "post", "CreateImplementationTask"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks", "get", "ListImplementationTasks"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order", "put", "ReorderImplementationTasks"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "get", "GetImplementationTask"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "put", "UpdateImplementationTask"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "delete", "DeleteImplementationTask"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start", "post", "StartImplementationTask"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post", "CompleteImplementationTask")
+        ];
+
+        Assert.Equal(
+            expectedOperations.Select(operation => operation.Path).Distinct().Count(),
+            paths.EnumerateObject().Count());
+
+        foreach (var expected in expectedOperations)
+        {
+            var operation = paths
+                .GetProperty(expected.Path)
+                .GetProperty(expected.Method);
+
+            Assert.Equal(
+                expected.OperationId,
+                operation.GetProperty("operationId").GetString());
+        }
+    }
+
+    [Fact]
     public async Task Document_ContainsExpectedOperations()
     {
         using var factory = new SpecFlowApiFactory();

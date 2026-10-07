@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SpecFlow.Api.Contracts.AcceptanceCriteria;
@@ -137,7 +136,8 @@ public static class AcceptanceCriterionEndpoints
                 dbContext,
                 cancellationToken);
         }
-        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        catch (DbUpdateException exception) when (
+            PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             return await ResolveCreateConflictAsync(
                 specification.Id,
@@ -304,7 +304,8 @@ public static class AcceptanceCriterionEndpoints
         {
             return AcceptanceCriterionUpdateConflictProblem(identifiers.CriterionId);
         }
-        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        catch (DbUpdateException exception) when (
+            PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             return AcceptanceCriterionAlreadyExistsProblem();
         }
@@ -395,7 +396,8 @@ public static class AcceptanceCriterionEndpoints
             await RollbackAsync(transaction, cancellationToken);
             return AcceptanceCriteriaCollectionChangedProblem();
         }
-        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        catch (DbUpdateException exception) when (
+            PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             await RollbackAsync(transaction, cancellationToken);
             return AcceptanceCriteriaCollectionChangedProblem();
@@ -488,7 +490,8 @@ public static class AcceptanceCriterionEndpoints
             await RollbackAsync(transaction, cancellationToken);
             return AcceptanceCriteriaCollectionChangedProblem();
         }
-        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        catch (DbUpdateException exception) when (
+            PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             await RollbackAsync(transaction, cancellationToken);
             return AcceptanceCriteriaCollectionChangedProblem();
@@ -497,73 +500,38 @@ public static class AcceptanceCriterionEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<(Specification? Specification, IResult? Error)>
+    private static Task<(Specification? Specification, IResult? Error)>
         FindSpecificationAsync(
             Guid projectId,
             Guid proposalId,
             SpecFlowDbContext dbContext,
             bool tracking,
-            CancellationToken cancellationToken)
-    {
-        var projectExists = await dbContext.Projects
-            .AnyAsync(project => project.Id == projectId, cancellationToken);
-
-        if (!projectExists)
-        {
-            return (null, ProjectNotFoundProblem(projectId));
-        }
-
-        var proposalExists = await dbContext.FeatureProposals
-            .AnyAsync(
-                proposal => proposal.Id == proposalId && proposal.ProjectId == projectId,
-                cancellationToken);
-
-        if (!proposalExists)
-        {
-            return (null, FeatureProposalNotFoundProblem(proposalId));
-        }
-
-        IQueryable<Specification> query = dbContext.Specifications;
-        if (!tracking)
-        {
-            query = query.AsNoTracking();
-        }
-
-        var specification = await query.SingleOrDefaultAsync(
-            existingSpecification => existingSpecification.FeatureProposalId == proposalId,
+            CancellationToken cancellationToken) =>
+        SpecificationContextResolver.FindAsync(
+            projectId,
+            proposalId,
+            dbContext,
+            tracking,
             cancellationToken);
-
-        return specification is null
-            ? (null, SpecificationNotFoundProblem(proposalId))
-            : (specification, null);
-    }
 
     private static (
         Guid ProjectId,
         Guid ProposalId,
         IResult? Error) ParseParentIdentifiers(string projectId, string proposalId)
     {
-        if (!Guid.TryParse(projectId, out var parsedProjectId))
+        var projectIdentifier = RouteIdentifierParser.ParseProject(projectId);
+        if (projectIdentifier.Error is not null)
         {
-            return (
-                Guid.Empty,
-                Guid.Empty,
-                InvalidIdentifierProblem(
-                    "projectId",
-                    "The project identifier must be a valid UUID."));
+            return (Guid.Empty, Guid.Empty, projectIdentifier.Error);
         }
 
-        if (!Guid.TryParse(proposalId, out var parsedProposalId))
+        var proposalIdentifier = RouteIdentifierParser.ParseFeatureProposal(proposalId);
+        if (proposalIdentifier.Error is not null)
         {
-            return (
-                Guid.Empty,
-                Guid.Empty,
-                InvalidIdentifierProblem(
-                    "proposalId",
-                    "The feature proposal identifier must be a valid UUID."));
+            return (Guid.Empty, Guid.Empty, proposalIdentifier.Error);
         }
 
-        return (parsedProjectId, parsedProposalId, null);
+        return (projectIdentifier.Identifier, proposalIdentifier.Identifier, null);
     }
 
     private static (
@@ -581,21 +549,16 @@ public static class AcceptanceCriterionEndpoints
             return (Guid.Empty, Guid.Empty, Guid.Empty, parentIdentifiers.Error);
         }
 
-        if (!Guid.TryParse(criterionId, out var parsedCriterionId))
+        var criterionIdentifier = RouteIdentifierParser.ParseAcceptanceCriterion(criterionId);
+        if (criterionIdentifier.Error is not null)
         {
-            return (
-                Guid.Empty,
-                Guid.Empty,
-                Guid.Empty,
-                InvalidIdentifierProblem(
-                    "criterionId",
-                    "The acceptance criterion identifier must be a valid UUID."));
+            return (Guid.Empty, Guid.Empty, Guid.Empty, criterionIdentifier.Error);
         }
 
         return (
             parentIdentifiers.ProjectId,
             parentIdentifiers.ProposalId,
-            parsedCriterionId,
+            criterionIdentifier.Identifier,
             null);
     }
 
@@ -664,29 +627,7 @@ public static class AcceptanceCriterionEndpoints
         transaction.RollbackAsync(cancellationToken);
 
     private static IResult InvalidIdentifierProblem(string field, string message) =>
-        Results.ValidationProblem(
-            new Dictionary<string, string[]>(StringComparer.Ordinal)
-            {
-                [field] = [message]
-            });
-
-    private static IResult ProjectNotFoundProblem(Guid projectId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Project not found",
-            detail: $"No project with identifier '{projectId}' was found.");
-
-    private static IResult FeatureProposalNotFoundProblem(Guid proposalId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Feature proposal not found",
-            detail: $"No feature proposal with identifier '{proposalId}' was found in this project.");
-
-    private static IResult SpecificationNotFoundProblem(Guid proposalId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Specification not found",
-            detail: $"Feature proposal '{proposalId}' does not have a specification.");
+        EndpointProblems.InvalidIdentifier(field, message);
 
     private static IResult AcceptanceCriterionNotFoundProblem(Guid criterionId) =>
         Results.Problem(
@@ -712,10 +653,4 @@ public static class AcceptanceCriterionEndpoints
             title: "Acceptance criteria collection changed",
             detail: "The acceptance criteria collection changed while the operation was in progress.");
 
-    private static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
-        exception.InnerException is SqliteException
-        {
-            SqliteErrorCode: 19,
-            SqliteExtendedErrorCode: 2067
-        };
 }

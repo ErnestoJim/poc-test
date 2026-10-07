@@ -8,6 +8,19 @@ namespace SpecFlow.Api.IntegrationTests.Specifications;
 
 internal static class SpecificationTestData
 {
+    public static async Task<(
+        ProjectResponse Project,
+        FeatureProposalResponse Proposal,
+        SpecificationResponse Specification)> CreateSpecificationContextAsync(
+            HttpClient client,
+            string projectName = "Test project")
+    {
+        var (project, proposal) = await CreateAcceptedProposalAsync(client, projectName);
+        var specification = await CreateSpecificationAsync(client, project.Id, proposal.Id);
+
+        return (project, proposal, specification);
+    }
+
     public static async Task<(ProjectResponse Project, FeatureProposalResponse Proposal)>
         CreateAcceptedProposalAsync(
             HttpClient client,

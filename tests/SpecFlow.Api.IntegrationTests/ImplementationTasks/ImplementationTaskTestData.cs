@@ -9,22 +9,13 @@ namespace SpecFlow.Api.IntegrationTests.ImplementationTasks;
 
 internal static class ImplementationTaskTestData
 {
-    public static async Task<(
+    public static Task<(
         ProjectResponse Project,
         FeatureProposalResponse Proposal,
         SpecificationResponse Specification)> CreateSpecificationContextAsync(
             HttpClient client,
-            string projectName = "Test project")
-    {
-        var (project, proposal) = await SpecificationTestData
-            .CreateAcceptedProposalAsync(client, projectName);
-        var specification = await SpecificationTestData.CreateSpecificationAsync(
-            client,
-            project.Id,
-            proposal.Id);
-
-        return (project, proposal, specification);
-    }
+            string projectName = "Test project") =>
+        SpecificationTestData.CreateSpecificationContextAsync(client, projectName);
 
     public static async Task<ImplementationTaskResponse> CreateTaskAsync(
         HttpClient client,
