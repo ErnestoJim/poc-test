@@ -31,6 +31,8 @@ public sealed class Specification
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
+    public int Version { get; private set; }
+
     public int AcceptanceCriteriaVersion { get; private set; }
 
     public int ImplementationTasksVersion { get; private set; }
@@ -81,12 +83,8 @@ public sealed class Specification
 
         Content = content!;
         UpdatedAtUtc = NormalizeTimestamp(updatedAtUtc);
+        Version++;
         return true;
-    }
-
-    public void MarkAcceptanceCriteriaChanged()
-    {
-        AcceptanceCriteriaVersion++;
     }
 
     public static Dictionary<string, string[]> ValidateContent(string? content)

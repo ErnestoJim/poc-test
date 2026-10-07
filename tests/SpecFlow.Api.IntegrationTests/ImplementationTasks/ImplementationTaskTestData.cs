@@ -3,6 +3,7 @@ using SpecFlow.Api.Contracts.FeatureProposals;
 using SpecFlow.Api.Contracts.ImplementationTasks;
 using SpecFlow.Api.Contracts.Projects;
 using SpecFlow.Api.Contracts.Specifications;
+using SpecFlow.Api.IntegrationTests.Infrastructure;
 using SpecFlow.Api.IntegrationTests.Specifications;
 
 namespace SpecFlow.Api.IntegrationTests.ImplementationTasks;
@@ -43,9 +44,11 @@ internal static class ImplementationTaskTestData
         Guid proposalId,
         Guid taskId)
     {
-        using var response = await client.PostAsync(
-            $"{TasksRoute(projectId, proposalId)}/{taskId}/start",
-            content: null);
+        var taskRoute = $"{TasksRoute(projectId, proposalId)}/{taskId}";
+        using var response = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
+            client,
+            taskRoute,
+            $"{taskRoute}/start");
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<ImplementationTaskResponse>()
@@ -59,9 +62,11 @@ internal static class ImplementationTaskTestData
         Guid proposalId,
         Guid taskId)
     {
-        using var response = await client.PostAsync(
-            $"{TasksRoute(projectId, proposalId)}/{taskId}/complete",
-            content: null);
+        var taskRoute = $"{TasksRoute(projectId, proposalId)}/{taskId}";
+        using var response = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
+            client,
+            taskRoute,
+            $"{taskRoute}/complete");
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<ImplementationTaskResponse>()

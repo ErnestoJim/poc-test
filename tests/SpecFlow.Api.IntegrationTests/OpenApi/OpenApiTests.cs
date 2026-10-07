@@ -7,6 +7,76 @@ namespace SpecFlow.Api.IntegrationTests.OpenApi;
 public sealed class OpenApiTests
 {
     [Fact]
+    public async Task Document_DescribesHttpConcurrencyHeadersAndResponses()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/openapi/v1.json");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var documentStream = await response.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(documentStream);
+        var paths = document.RootElement.GetProperty("paths");
+        (string Path, string Method)[] conditionalOperations =
+        [
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification", "put"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order", "put"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "put"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "delete"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order", "put"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "put"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "delete"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start", "post"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post")
+        ];
+
+        foreach (var operationReference in conditionalOperations)
+        {
+            var operation = paths
+                .GetProperty(operationReference.Path)
+                .GetProperty(operationReference.Method);
+            var ifMatch = Assert.Single(
+                operation.GetProperty("parameters").EnumerateArray(),
+                parameter => parameter.GetProperty("name").GetString() == "If-Match");
+            Assert.Equal("header", ifMatch.GetProperty("in").GetString());
+            Assert.True(ifMatch.GetProperty("required").GetBoolean());
+            Assert.True(operation.GetProperty("responses").TryGetProperty("412", out _));
+            Assert.True(operation.GetProperty("responses").TryGetProperty("428", out _));
+        }
+
+        (string Path, string Method, string Status)[] entityTagResponses =
+        [
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification", "post", "201"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification", "get", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification", "put", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "post", "201"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "get", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order", "put", "204"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "get", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "put", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks", "post", "201"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks", "get", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order", "put", "204"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "get", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "put", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start", "post", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post", "200")
+        ];
+
+        foreach (var responseReference in entityTagResponses)
+        {
+            var documentedResponse = paths
+                .GetProperty(responseReference.Path)
+                .GetProperty(responseReference.Method)
+                .GetProperty("responses")
+                .GetProperty(responseReference.Status);
+            Assert.True(
+                documentedResponse.GetProperty("headers").TryGetProperty("ETag", out _));
+        }
+    }
+
+    [Fact]
     public async Task Document_ContainsOnlyExpectedNamedOperations()
     {
         using var factory = new SpecFlowApiFactory();

@@ -26,9 +26,13 @@ public sealed class UpdateImplementationTaskTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         const string Description = "  Updated **Markdown**\r\n";
 
-        using var response = await client.PutAsJsonAsync(
-            $"{TasksRoute()}/{created.Id}",
-            new SaveImplementationTaskRequest("  Updated  ", Description));
+        var route = $"{TasksRoute()}/{created.Id}";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveImplementationTaskRequest("  Updated  ", Description));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var updated = await response.Content.ReadFromJsonAsync<ImplementationTaskResponse>();
@@ -61,9 +65,14 @@ public sealed class UpdateImplementationTaskTests
             "Description");
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.PutAsJsonAsync(
-            $"{ImplementationTaskTestData.TasksRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}",
-            new SaveImplementationTaskRequest("  Task  ", created.Description));
+        var route =
+            $"{ImplementationTaskTestData.TasksRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveImplementationTaskRequest("  Task  ", created.Description));
 
         var unchanged = await response.Content
             .ReadFromJsonAsync<ImplementationTaskResponse>();
@@ -85,9 +94,14 @@ public sealed class UpdateImplementationTaskTests
             "Task",
             "Description");
 
-        using var response = await client.PutAsJsonAsync(
-            $"{ImplementationTaskTestData.TasksRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}",
-            new SaveImplementationTaskRequest(created.Title, null));
+        var route =
+            $"{ImplementationTaskTestData.TasksRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveImplementationTaskRequest(created.Title, null));
 
         var updated = await response.Content.ReadFromJsonAsync<ImplementationTaskResponse>();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -113,9 +127,13 @@ public sealed class UpdateImplementationTaskTests
             context.Proposal.Id,
             "Second");
 
-        using var response = await client.PutAsJsonAsync(
-            $"{TasksRoute()}/{second.Id}",
-            new SaveImplementationTaskRequest("  FIRST  ", "Changed"));
+        var route = $"{TasksRoute()}/{second.Id}";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveImplementationTaskRequest("  FIRST  ", "Changed"));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();

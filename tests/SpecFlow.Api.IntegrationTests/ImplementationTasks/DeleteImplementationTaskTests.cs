@@ -21,7 +21,8 @@ public sealed class DeleteImplementationTaskTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         var expectedTimestamp = factory.TimeProvider.GetUtcNow();
 
-        using var response = await client.DeleteAsync($"{TasksRoute()}/{second.Id}");
+        using var response = await HttpPreconditionTestData
+            .DeleteWithCurrentEntityTagAsync(client, $"{TasksRoute()}/{second.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         using var getDeletedResponse = await client.GetAsync($"{TasksRoute()}/{second.Id}");
@@ -70,8 +71,8 @@ public sealed class DeleteImplementationTaskTests
             "Second");
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.DeleteAsync(
-            $"{TasksRoute()}/{second.Id}");
+        using var response = await HttpPreconditionTestData
+            .DeleteWithCurrentEntityTagAsync(client, $"{TasksRoute()}/{second.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var tasks = await client.GetFromJsonAsync<List<ImplementationTaskResponse>>(

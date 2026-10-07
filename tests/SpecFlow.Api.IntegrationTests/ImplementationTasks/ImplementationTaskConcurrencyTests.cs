@@ -111,13 +111,17 @@ public sealed class ImplementationTaskConcurrencyTests
         await using var secondScope = factory.Services.CreateAsyncScope();
         var firstDbContext = firstScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
         var secondDbContext = secondScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
-        var firstCopy = await firstDbContext.Specifications.SingleAsync(
-            specification => specification.Id == context.Specification.Id);
         var secondCopy = await secondDbContext.Specifications.SingleAsync(
             specification => specification.Id == context.Specification.Id);
 
-        firstCopy.MarkAcceptanceCriteriaChanged();
-        await firstDbContext.SaveChangesAsync();
+        var criterionVersionUpdate = await firstDbContext.Specifications
+            .Where(specification =>
+                specification.Id == context.Specification.Id &&
+                specification.AcceptanceCriteriaVersion == 0)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    specification => specification.AcceptanceCriteriaVersion,
+                    specification => specification.AcceptanceCriteriaVersion + 1));
         var taskVersionUpdate = await secondDbContext.Specifications
             .Where(specification =>
                 specification.Id == context.Specification.Id &&
@@ -136,6 +140,7 @@ public sealed class ImplementationTaskConcurrencyTests
             .SingleAsync(specification => specification.Id == context.Specification.Id);
         Assert.Equal(1, persisted.AcceptanceCriteriaVersion);
         Assert.Equal(1, persisted.ImplementationTasksVersion);
+        Assert.Equal(1, criterionVersionUpdate);
         Assert.Equal(1, taskVersionUpdate);
     }
 

@@ -26,4 +26,22 @@ internal static class EndpointProblems
             statusCode: StatusCodes.Status404NotFound,
             title: "Specification not found",
             detail: $"Feature proposal '{proposalId}' does not have a specification.");
+
+    public static IResult PreconditionRequired() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status428PreconditionRequired,
+            title: "Precondition required",
+            detail: "The operation requires the current ETag in the If-Match header.");
+
+    public static IResult InvalidIfMatchHeader() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid If-Match header",
+            detail: "The If-Match header must contain exactly one strong ETag.");
+
+    public static IResult PreconditionFailed() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status412PreconditionFailed,
+            title: "Precondition failed",
+            detail: "The resource changed since it was read.");
 }

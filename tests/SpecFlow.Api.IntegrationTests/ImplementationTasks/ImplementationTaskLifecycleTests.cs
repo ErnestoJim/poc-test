@@ -20,9 +20,11 @@ public sealed class ImplementationTaskLifecycleTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         var expectedTimestamp = factory.TimeProvider.GetUtcNow();
 
-        using var response = await client.PostAsync(
-            $"{TasksRoute()}/{created.Id}/start",
-            content: null);
+        var taskRoute = $"{TasksRoute()}/{created.Id}";
+        using var response = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
+            client,
+            taskRoute,
+            $"{taskRoute}/start");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var started = await response.Content.ReadFromJsonAsync<ImplementationTaskResponse>();
@@ -67,9 +69,11 @@ public sealed class ImplementationTaskLifecycleTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(2));
         var expectedTimestamp = factory.TimeProvider.GetUtcNow();
 
-        using var response = await client.PostAsync(
-            $"{TasksRoute()}/{created.Id}/complete",
-            content: null);
+        var taskRoute = $"{TasksRoute()}/{created.Id}";
+        using var response = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
+            client,
+            taskRoute,
+            $"{taskRoute}/complete");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var completed = await response.Content
@@ -101,9 +105,11 @@ public sealed class ImplementationTaskLifecycleTests
             context.Proposal.Id,
             "Task");
 
-        using var response = await client.PostAsync(
-            $"{TasksRoute()}/{created.Id}/complete",
-            content: null);
+        var taskRoute = $"{TasksRoute()}/{created.Id}";
+        using var response = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
+            client,
+            taskRoute,
+            $"{taskRoute}/complete");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
@@ -137,9 +143,11 @@ public sealed class ImplementationTaskLifecycleTests
             created.Id);
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.PostAsync(
-            $"{TasksRoute()}/{created.Id}/start",
-            content: null);
+        var taskRoute = $"{TasksRoute()}/{created.Id}";
+        using var response = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
+            client,
+            taskRoute,
+            $"{taskRoute}/start");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var persisted = await client.GetFromJsonAsync<ImplementationTaskResponse>(
@@ -176,9 +184,11 @@ public sealed class ImplementationTaskLifecycleTests
             context.Proposal.Id,
             created.Id);
 
-        using var response = await client.PostAsync(
-            $"{TasksRoute()}/{created.Id}/{action}",
-            content: null);
+        var taskRoute = $"{TasksRoute()}/{created.Id}";
+        using var response = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
+            client,
+            taskRoute,
+            $"{taskRoute}/{action}");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var persisted = await client.GetFromJsonAsync<ImplementationTaskResponse>(
@@ -302,9 +312,13 @@ public sealed class ImplementationTaskLifecycleTests
         var completedThird = await CompleteTaskAsync(third.Id);
         var route = TasksRoute();
 
-        using var updateResponse = await client.PutAsJsonAsync(
-            $"{route}/{second.Id}",
-            new SaveImplementationTaskRequest("Second updated", "Description"));
+        var secondRoute = $"{route}/{second.Id}";
+        using var updateResponse = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                secondRoute,
+                secondRoute,
+                new SaveImplementationTaskRequest("Second updated", "Description"));
         var updated = await updateResponse.Content
             .ReadFromJsonAsync<ImplementationTaskResponse>();
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
@@ -313,10 +327,13 @@ public sealed class ImplementationTaskLifecycleTests
         Assert.Equal(completedSecond.StartedAtUtc, updated.StartedAtUtc);
         Assert.Equal(completedSecond.CompletedAtUtc, updated.CompletedAtUtc);
 
-        using var reorderResponse = await client.PutAsJsonAsync(
-            $"{route}/order",
-            new ReorderImplementationTasksRequest(
-                [third.Id.ToString(), first.Id.ToString(), second.Id.ToString()]));
+        using var reorderResponse = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                $"{route}/order",
+                new ReorderImplementationTasksRequest(
+                    [third.Id.ToString(), first.Id.ToString(), second.Id.ToString()]));
         Assert.Equal(HttpStatusCode.NoContent, reorderResponse.StatusCode);
         var reorderedThird = await client.GetFromJsonAsync<ImplementationTaskResponse>(
             $"{route}/{third.Id}");
@@ -325,7 +342,8 @@ public sealed class ImplementationTaskLifecycleTests
         Assert.Equal(completedThird.StartedAtUtc, reorderedThird.StartedAtUtc);
         Assert.Equal(completedThird.CompletedAtUtc, reorderedThird.CompletedAtUtc);
 
-        using var deleteResponse = await client.DeleteAsync($"{route}/{second.Id}");
+        using var deleteResponse = await HttpPreconditionTestData
+            .DeleteWithCurrentEntityTagAsync(client, $"{route}/{second.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
         using var getDeletedResponse = await client.GetAsync($"{route}/{second.Id}");
         Assert.Equal(HttpStatusCode.NotFound, getDeletedResponse.StatusCode);

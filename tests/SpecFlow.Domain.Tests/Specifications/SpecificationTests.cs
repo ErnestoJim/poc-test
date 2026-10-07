@@ -29,6 +29,7 @@ public sealed class SpecificationTests
         Assert.Equal(content, specification.Content);
         Assert.Equal(CreatedAtUtc, specification.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, specification.UpdatedAtUtc);
+        Assert.Equal(0, specification.Version);
     }
 
     [Theory]
@@ -96,6 +97,7 @@ public sealed class SpecificationTests
         Assert.Equal("# Updated\n", specification.Content);
         Assert.Equal(CreatedAtUtc, specification.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc.AddHours(1), specification.UpdatedAtUtc);
+        Assert.Equal(1, specification.Version);
     }
 
     [Fact]
@@ -109,16 +111,7 @@ public sealed class SpecificationTests
 
         Assert.False(changed);
         Assert.Equal(CreatedAtUtc, specification.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void MarkAcceptanceCriteriaChanged_IncrementsInternalVersion()
-    {
-        var specification = CreateSpecification();
-
-        specification.MarkAcceptanceCriteriaChanged();
-
-        Assert.Equal(1, specification.AcceptanceCriteriaVersion);
+        Assert.Equal(0, specification.Version);
     }
 
     private static Specification CreateSpecification() =>

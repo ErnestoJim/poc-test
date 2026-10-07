@@ -40,8 +40,11 @@ internal sealed class SpecificationConfiguration : IEntityTypeConfiguration<Spec
                 value => DateTimeOffset.FromUnixTimeMilliseconds(value))
             .IsRequired();
 
-        builder.Property(specification => specification.AcceptanceCriteriaVersion)
+        builder.Property(specification => specification.Version)
             .IsConcurrencyToken()
+            .IsRequired();
+
+        builder.Property(specification => specification.AcceptanceCriteriaVersion)
             .IsRequired();
 
         builder.Property(specification => specification.ImplementationTasksVersion)

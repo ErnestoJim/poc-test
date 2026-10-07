@@ -21,6 +21,7 @@ public sealed class SpecificationPersistenceTests
             Guid projectId;
             Guid proposalId;
             SpecificationResponse updated;
+            string updatedEntityTag;
 
             using (var firstFactory = new SpecFlowApiFactory(connectionString))
             using (var firstClient = firstFactory.CreateClient())
@@ -36,10 +37,16 @@ public sealed class SpecificationPersistenceTests
                     "# Original");
                 firstFactory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-                using var updateResponse = await firstClient.PutAsJsonAsync(
-                    $"/api/projects/{projectId}/proposals/{proposalId}/specification",
-                    new SaveSpecificationRequest("# Updated"));
+                var route =
+                    $"/api/projects/{projectId}/proposals/{proposalId}/specification";
+                using var updateResponse = await HttpPreconditionTestData
+                    .PutAsJsonWithCurrentEntityTagAsync(
+                        firstClient,
+                        route,
+                        route,
+                        new SaveSpecificationRequest("# Updated"));
                 updateResponse.EnsureSuccessStatusCode();
+                updatedEntityTag = HttpPreconditionTestData.GetRequiredEntityTag(updateResponse);
                 updated = await updateResponse.Content
                     .ReadFromJsonAsync<SpecificationResponse>()
                     ?? throw new InvalidOperationException(
@@ -55,6 +62,9 @@ public sealed class SpecificationPersistenceTests
             var persisted = await getResponse.Content
                 .ReadFromJsonAsync<SpecificationResponse>();
             Assert.Equal(updated, persisted);
+            Assert.Equal(
+                updatedEntityTag,
+                HttpPreconditionTestData.GetRequiredEntityTag(getResponse));
         }
         finally
         {

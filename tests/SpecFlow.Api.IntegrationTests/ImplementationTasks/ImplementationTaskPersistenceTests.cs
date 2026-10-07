@@ -50,10 +50,14 @@ public sealed class ImplementationTaskPersistenceTests
                     projectId,
                     proposalId,
                     second.Id);
-                using var reorderResponse = await firstClient.PutAsJsonAsync(
-                    $"{ImplementationTaskTestData.TasksRoute(projectId, proposalId)}/order",
-                    new ReorderImplementationTasksRequest(
-                        [second.Id.ToString(), first.Id.ToString()]));
+                var route = ImplementationTaskTestData.TasksRoute(projectId, proposalId);
+                using var reorderResponse = await HttpPreconditionTestData
+                    .PutAsJsonWithCurrentEntityTagAsync(
+                        firstClient,
+                        route,
+                        $"{route}/order",
+                        new ReorderImplementationTasksRequest(
+                            [second.Id.ToString(), first.Id.ToString()]));
                 reorderResponse.EnsureSuccessStatusCode();
             }
 

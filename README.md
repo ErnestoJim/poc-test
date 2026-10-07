@@ -14,6 +14,7 @@ funcionalidades. Las especificaciones están en:
 - [`specs/0006-implementation-tasks/spec.md`](specs/0006-implementation-tasks/spec.md)
 - [`specs/0007-implementation-task-lifecycle/spec.md`](specs/0007-implementation-task-lifecycle/spec.md)
 - [`specs/0008-api-maintainability-checkpoint/spec.md`](specs/0008-api-maintainability-checkpoint/spec.md)
+- [`specs/0009-http-concurrency/spec.md`](specs/0009-http-concurrency/spec.md)
 
 ## Requisitos
 
@@ -115,6 +116,7 @@ curl --request POST \
 curl --request PUT \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification \
   --header 'Content-Type: application/json' \
+  --header 'If-Match: {specificationEtag}' \
   --data '{"content":"# Updated specification\n\nRefined behavior."}'
 ```
 
@@ -131,6 +133,7 @@ curl --request POST \
 curl --request PUT \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order \
   --header 'Content-Type: application/json' \
+  --header 'If-Match: {criteriaListEtag}' \
   --data '{"criterionIds":["{firstCriterionId}","{secondCriterionId}"]}'
 ```
 
@@ -147,15 +150,42 @@ curl --request POST \
 curl --request PUT \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order \
   --header 'Content-Type: application/json' \
+  --header 'If-Match: {tasksListEtag}' \
   --data '{"taskIds":["{firstTaskId}","{secondTaskId}"]}'
 
 curl --request POST \
-  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start \
+  --header 'If-Match: {taskEtag}'
 
 curl --request POST \
-  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete \
+  --header 'If-Match: {updatedTaskEtag}'
 ```
 
 Las tareas comienzan en estado `pending`, pasan a `in_progress` al iniciarse y
 terminan en `completed`. Una tarea completada no puede reabrirse, aunque puede
 seguir editándose, reordenándose o eliminándose.
+
+## Concurrencia optimista
+
+Las respuestas de especificaciones, criterios y tareas incluyen un header
+`ETag`. Los listados de criterios y tareas también incluyen un ETag propio de
+la colección. Antes de editar, eliminar, transicionar o reordenar, el consumidor
+debe leer el recurso correspondiente y enviar ese valor sin interpretarlo en
+`If-Match`.
+
+```bash
+curl --include \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification
+
+curl --request PUT \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification \
+  --header 'Content-Type: application/json' \
+  --header 'If-Match: "{etagReturnedByGet}"' \
+  --data '{"content":"# Updated specification"}'
+```
+
+La ausencia de la precondición devuelve `428 Precondition Required`, un header
+no admitido devuelve `400 Bad Request` y un ETag obsoleto devuelve
+`412 Precondition Failed`. Las respuestas correctas devuelven el ETag vigente;
+una reordenación lo devuelve incluso con estado `204 No Content`.

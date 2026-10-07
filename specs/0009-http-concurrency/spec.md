@@ -2,7 +2,15 @@
 
 ## Estado
 
-Aprobada para implementación el 7 de octubre de 2026.
+Implementada y verificada el 7 de octubre de 2026.
+
+Verificación final:
+
+- compilación sin warnings ni errores;
+- 76 pruebas de dominio superadas;
+- 206 pruebas de integración superadas;
+- formato verificado sin cambios;
+- modelo de EF Core sin migraciones pendientes.
 
 ## Problema
 

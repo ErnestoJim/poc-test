@@ -74,17 +74,32 @@ public sealed class AcceptanceCriterionConcurrencyTests
         await using var secondScope = factory.Services.CreateAsyncScope();
         var firstDbContext = firstScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
         var secondDbContext = secondScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
-        var firstCopy = await firstDbContext.Specifications.SingleAsync(
-            specification => specification.Id == context.Specification.Id);
-        var secondCopy = await secondDbContext.Specifications.SingleAsync(
-            specification => specification.Id == context.Specification.Id);
+        var originalVersion = await firstDbContext.Specifications
+            .Where(specification => specification.Id == context.Specification.Id)
+            .Select(specification => specification.AcceptanceCriteriaVersion)
+            .SingleAsync();
 
-        firstCopy.MarkAcceptanceCriteriaChanged();
-        secondCopy.MarkAcceptanceCriteriaChanged();
-        await firstDbContext.SaveChangesAsync();
+        var firstResult = await AdvanceCriterionVersionAsync(
+            firstDbContext,
+            originalVersion);
+        var secondResult = await AdvanceCriterionVersionAsync(
+            secondDbContext,
+            originalVersion);
 
-        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
-            () => secondDbContext.SaveChangesAsync());
+        Assert.Equal(1, firstResult);
+        Assert.Equal(0, secondResult);
+
+        Task<int> AdvanceCriterionVersionAsync(
+            SpecFlowDbContext dbContext,
+            int expectedVersion) =>
+            dbContext.Specifications
+                .Where(specification =>
+                    specification.Id == context.Specification.Id &&
+                    specification.AcceptanceCriteriaVersion == expectedVersion)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        specification => specification.AcceptanceCriteriaVersion,
+                        specification => specification.AcceptanceCriteriaVersion + 1));
     }
 
     [Fact]

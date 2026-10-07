@@ -23,10 +23,13 @@ public sealed class ReorderAcceptanceCriteriaTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         var expectedTimestamp = factory.TimeProvider.GetUtcNow();
 
-        using var response = await client.PutAsJsonAsync(
-            $"{CriteriaRoute()}/order",
-            new ReorderAcceptanceCriteriaRequest(
-                [third.Id.ToString(), first.Id.ToString(), second.Id.ToString()]));
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                CriteriaRoute(),
+                $"{CriteriaRoute()}/order",
+                new ReorderAcceptanceCriteriaRequest(
+                    [third.Id.ToString(), first.Id.ToString(), second.Id.ToString()]));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(0, response.Content.Headers.ContentLength);
@@ -88,10 +91,16 @@ public sealed class ReorderAcceptanceCriteriaTests
             "Second");
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.PutAsJsonAsync(
-            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/order",
-            new ReorderAcceptanceCriteriaRequest(
-                [first.Id.ToString(), second.Id.ToString()]));
+        var route = AcceptanceCriterionTestData.CriteriaRoute(
+            context.Project.Id,
+            context.Proposal.Id);
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                $"{route}/order",
+                new ReorderAcceptanceCriteriaRequest(
+                    [first.Id.ToString(), second.Id.ToString()]));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var criteria = await client.GetFromJsonAsync<List<AcceptanceCriterionResponse>>(
@@ -117,10 +126,16 @@ public sealed class ReorderAcceptanceCriteriaTests
             context.Proposal.Id,
             "Second");
 
-        using var response = await client.PutAsJsonAsync(
-            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/order",
-            new ReorderAcceptanceCriteriaRequest(
-                [first.Id.ToString(), Guid.NewGuid().ToString()]));
+        var route = AcceptanceCriterionTestData.CriteriaRoute(
+            context.Project.Id,
+            context.Proposal.Id);
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                $"{route}/order",
+                new ReorderAcceptanceCriteriaRequest(
+                    [first.Id.ToString(), Guid.NewGuid().ToString()]));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
@@ -166,9 +181,15 @@ public sealed class ReorderAcceptanceCriteriaTests
         var context = await AcceptanceCriterionTestData
             .CreateSpecificationContextAsync(client);
 
-        using var response = await client.PutAsJsonAsync(
-            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/order",
-            new ReorderAcceptanceCriteriaRequest([]));
+        var route = AcceptanceCriterionTestData.CriteriaRoute(
+            context.Project.Id,
+            context.Proposal.Id);
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                $"{route}/order",
+                new ReorderAcceptanceCriteriaRequest([]));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }

@@ -5,7 +5,8 @@ using SpecFlow.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+    options.AddOperationTransformer<HttpConcurrencyOpenApiTransformer>());
 builder.Services.AddSingleton(TimeProvider.System);
 
 var connectionString = builder.Configuration.GetConnectionString("SpecFlow")

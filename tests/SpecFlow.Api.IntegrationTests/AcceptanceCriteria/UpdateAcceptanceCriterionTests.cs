@@ -25,9 +25,14 @@ public sealed class UpdateAcceptanceCriterionTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         const string UpdatedContent = "  Updated\r\n";
 
-        using var response = await client.PutAsJsonAsync(
-            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}",
-            new SaveAcceptanceCriterionRequest(UpdatedContent));
+        var route =
+            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveAcceptanceCriterionRequest(UpdatedContent));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var updated = await response.Content
@@ -55,9 +60,14 @@ public sealed class UpdateAcceptanceCriterionTests
             "Criterion");
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.PutAsJsonAsync(
-            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}",
-            new SaveAcceptanceCriterionRequest(created.Content));
+        var route =
+            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{created.Id}";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveAcceptanceCriterionRequest(created.Content));
 
         var unchanged = await response.Content
             .ReadFromJsonAsync<AcceptanceCriterionResponse>();
@@ -83,9 +93,14 @@ public sealed class UpdateAcceptanceCriterionTests
             context.Proposal.Id,
             "Second");
 
-        using var response = await client.PutAsJsonAsync(
-            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{second.Id}",
-            new SaveAcceptanceCriterionRequest(first.Content));
+        var route =
+            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{second.Id}";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveAcceptanceCriterionRequest(first.Content));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();

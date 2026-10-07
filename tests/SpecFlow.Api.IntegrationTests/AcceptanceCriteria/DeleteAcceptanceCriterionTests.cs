@@ -21,7 +21,8 @@ public sealed class DeleteAcceptanceCriterionTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         var expectedTimestamp = factory.TimeProvider.GetUtcNow();
 
-        using var response = await client.DeleteAsync($"{CriteriaRoute()}/{second.Id}");
+        using var response = await HttpPreconditionTestData
+            .DeleteWithCurrentEntityTagAsync(client, $"{CriteriaRoute()}/{second.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         using var getDeletedResponse = await client.GetAsync($"{CriteriaRoute()}/{second.Id}");
@@ -70,8 +71,10 @@ public sealed class DeleteAcceptanceCriterionTests
             "Second");
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.DeleteAsync(
-            $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{second.Id}");
+        using var response = await HttpPreconditionTestData
+            .DeleteWithCurrentEntityTagAsync(
+                client,
+                $"{AcceptanceCriterionTestData.CriteriaRoute(context.Project.Id, context.Proposal.Id)}/{second.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var criteria = await client.GetFromJsonAsync<List<AcceptanceCriterionResponse>>(

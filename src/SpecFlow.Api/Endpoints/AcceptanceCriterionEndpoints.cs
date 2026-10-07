@@ -38,6 +38,8 @@ public static class AcceptanceCriterionEndpoints
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
 
         group.MapGet("/{criterionId}", GetAcceptanceCriterionAsync)
@@ -53,6 +55,8 @@ public static class AcceptanceCriterionEndpoints
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
 
         group.MapDelete("/{criterionId}", DeleteAcceptanceCriterionAsync)
@@ -60,7 +64,9 @@ public static class AcceptanceCriterionEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired);
 
         return group;
     }
@@ -71,6 +77,7 @@ public static class AcceptanceCriterionEndpoints
         SaveAcceptanceCriterionRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseParentIdentifiers(projectId, proposalId);
@@ -89,7 +96,7 @@ public static class AcceptanceCriterionEndpoints
             identifiers.ProjectId,
             identifiers.ProposalId,
             dbContext,
-            tracking: true,
+            tracking: false,
             cancellationToken);
 
         if (context.Error is not null)
@@ -121,15 +128,32 @@ public static class AcceptanceCriterionEndpoints
             request.Content,
             lastPosition + 1,
             timeProvider.GetUtcNow());
-        specification.MarkAcceptanceCriteriaChanged();
         dbContext.AcceptanceCriteria.Add(criterion);
+
+        await using var transaction = await dbContext.Database
+            .BeginTransactionAsync(cancellationToken);
 
         try
         {
+            if (!await TryAdvanceCollectionVersionAsync(
+                    specification,
+                    dbContext,
+                    cancellationToken))
+            {
+                await RollbackAsync(transaction, cancellationToken);
+                return await ResolveCreateConflictAsync(
+                    specification.Id,
+                    contentHash,
+                    dbContext,
+                    cancellationToken);
+            }
+
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
+            await RollbackAsync(transaction, cancellationToken);
             return await ResolveCreateConflictAsync(
                 specification.Id,
                 contentHash,
@@ -139,6 +163,7 @@ public static class AcceptanceCriterionEndpoints
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
+            await RollbackAsync(transaction, cancellationToken);
             return await ResolveCreateConflictAsync(
                 specification.Id,
                 contentHash,
@@ -146,15 +171,18 @@ public static class AcceptanceCriterionEndpoints
                 cancellationToken);
         }
 
-        return Results.CreatedAtRoute(
-            "GetAcceptanceCriterion",
-            new
-            {
-                projectId = identifiers.ProjectId,
-                proposalId = identifiers.ProposalId,
-                criterionId = criterion.Id
-            },
-            AcceptanceCriterionResponse.FromDomain(criterion));
+        return WithEntityTag(
+            httpContext,
+            criterion,
+            Results.CreatedAtRoute(
+                "GetAcceptanceCriterion",
+                new
+                {
+                    projectId = identifiers.ProjectId,
+                    proposalId = identifiers.ProposalId,
+                    criterionId = criterion.Id
+                },
+                AcceptanceCriterionResponse.FromDomain(criterion)));
     }
 
     private static async Task<IResult> GetAcceptanceCriterionAsync(
@@ -162,6 +190,7 @@ public static class AcceptanceCriterionEndpoints
         string proposalId,
         string criterionId,
         SpecFlowDbContext dbContext,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId, criterionId);
@@ -192,13 +221,17 @@ public static class AcceptanceCriterionEndpoints
 
         return criterion is null
             ? AcceptanceCriterionNotFoundProblem(identifiers.CriterionId)
-            : Results.Ok(AcceptanceCriterionResponse.FromDomain(criterion));
+            : WithEntityTag(
+                httpContext,
+                criterion,
+                Results.Ok(AcceptanceCriterionResponse.FromDomain(criterion)));
     }
 
     private static async Task<IResult> ListAcceptanceCriteriaAsync(
         string projectId,
         string proposalId,
         SpecFlowDbContext dbContext,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseParentIdentifiers(projectId, proposalId);
@@ -226,7 +259,10 @@ public static class AcceptanceCriterionEndpoints
             .ThenBy(criterion => criterion.Id)
             .ToListAsync(cancellationToken);
 
-        return Results.Ok(criteria.Select(AcceptanceCriterionResponse.FromDomain));
+        return HttpEntityTags.WithEntityTag(
+            httpContext,
+            CreateCollectionEntityTag(context.Specification!, criteria),
+            Results.Ok(criteria.Select(AcceptanceCriterionResponse.FromDomain)));
     }
 
     private static async Task<IResult> UpdateAcceptanceCriterionAsync(
@@ -236,6 +272,7 @@ public static class AcceptanceCriterionEndpoints
         SaveAcceptanceCriterionRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId, criterionId);
@@ -275,6 +312,14 @@ public static class AcceptanceCriterionEndpoints
             return AcceptanceCriterionNotFoundProblem(identifiers.CriterionId);
         }
 
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(criterion));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
         var contentHash = AcceptanceCriterion.CalculateContentHash(request.Content!);
         var duplicateExists = await dbContext.AcceptanceCriteria
             .AsNoTracking()
@@ -293,7 +338,10 @@ public static class AcceptanceCriterionEndpoints
         var changed = criterion.UpdateContent(request.Content, timeProvider.GetUtcNow());
         if (!changed)
         {
-            return Results.Ok(AcceptanceCriterionResponse.FromDomain(criterion));
+            return WithEntityTag(
+                httpContext,
+                criterion,
+                Results.Ok(AcceptanceCriterionResponse.FromDomain(criterion)));
         }
 
         try
@@ -302,7 +350,7 @@ public static class AcceptanceCriterionEndpoints
         }
         catch (DbUpdateConcurrencyException)
         {
-            return AcceptanceCriterionUpdateConflictProblem(identifiers.CriterionId);
+            return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
@@ -310,7 +358,10 @@ public static class AcceptanceCriterionEndpoints
             return AcceptanceCriterionAlreadyExistsProblem();
         }
 
-        return Results.Ok(AcceptanceCriterionResponse.FromDomain(criterion));
+        return WithEntityTag(
+            httpContext,
+            criterion,
+            Results.Ok(AcceptanceCriterionResponse.FromDomain(criterion)));
     }
 
     private static async Task<IResult> ReorderAcceptanceCriteriaAsync(
@@ -319,6 +370,7 @@ public static class AcceptanceCriterionEndpoints
         ReorderAcceptanceCriteriaRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseParentIdentifiers(projectId, proposalId);
@@ -333,11 +385,14 @@ public static class AcceptanceCriterionEndpoints
             return order.Error;
         }
 
+        await using var transaction = await dbContext.Database
+            .BeginTransactionAsync(cancellationToken);
+
         var context = await FindSpecificationAsync(
             identifiers.ProjectId,
             identifiers.ProposalId,
             dbContext,
-            tracking: true,
+            tracking: false,
             cancellationToken);
 
         if (context.Error is not null)
@@ -352,6 +407,14 @@ public static class AcceptanceCriterionEndpoints
             .ToListAsync(cancellationToken);
         var requestedIds = order.CriterionIds!;
 
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateCollectionEntityTag(specification, criteria));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
         if (criteria.Count != requestedIds.Count ||
             !criteria.Select(criterion => criterion.Id).ToHashSet().SetEquals(requestedIds))
         {
@@ -365,12 +428,16 @@ public static class AcceptanceCriterionEndpoints
             .ToList();
         var timestamp = timeProvider.GetUtcNow();
 
-        await using var transaction = await dbContext.Database
-            .BeginTransactionAsync(cancellationToken);
-
         try
         {
-            specification.MarkAcceptanceCriteriaChanged();
+            if (!await TryAdvanceCollectionVersionAsync(
+                    specification,
+                    dbContext,
+                    cancellationToken))
+            {
+                await RollbackAsync(transaction, cancellationToken);
+                return EndpointProblems.PreconditionFailed();
+            }
 
             if (movedCriteria.Count > 0)
             {
@@ -394,16 +461,24 @@ public static class AcceptanceCriterionEndpoints
         catch (DbUpdateConcurrencyException)
         {
             await RollbackAsync(transaction, cancellationToken);
-            return AcceptanceCriteriaCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             await RollbackAsync(transaction, cancellationToken);
-            return AcceptanceCriteriaCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
 
-        return Results.NoContent();
+        return HttpEntityTags.WithEntityTag(
+            httpContext,
+            CreateCollectionEntityTag(
+                specification.Id,
+                specification.AcceptanceCriteriaVersion + 1,
+                criteria
+                    .OrderBy(criterion => criterion.Position)
+                    .ThenBy(criterion => criterion.Id)),
+            Results.NoContent());
     }
 
     private static async Task<IResult> DeleteAcceptanceCriterionAsync(
@@ -412,6 +487,7 @@ public static class AcceptanceCriterionEndpoints
         string criterionId,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId, criterionId);
@@ -424,7 +500,7 @@ public static class AcceptanceCriterionEndpoints
             identifiers.ProjectId,
             identifiers.ProposalId,
             dbContext,
-            tracking: true,
+            tracking: false,
             cancellationToken);
 
         if (context.Error is not null)
@@ -445,6 +521,14 @@ public static class AcceptanceCriterionEndpoints
             return AcceptanceCriterionNotFoundProblem(identifiers.CriterionId);
         }
 
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(criterion));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
         var shiftedCriteria = await dbContext.AcceptanceCriteria
             .Where(existingCriterion =>
                 existingCriterion.SpecificationId == specification.Id &&
@@ -461,7 +545,15 @@ public static class AcceptanceCriterionEndpoints
 
         try
         {
-            specification.MarkAcceptanceCriteriaChanged();
+            if (!await TryAdvanceCollectionVersionAsync(
+                    specification,
+                    dbContext,
+                    cancellationToken))
+            {
+                await RollbackAsync(transaction, cancellationToken);
+                return EndpointProblems.PreconditionFailed();
+            }
+
             dbContext.AcceptanceCriteria.Remove(criterion);
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -488,13 +580,13 @@ public static class AcceptanceCriterionEndpoints
         catch (DbUpdateConcurrencyException)
         {
             await RollbackAsync(transaction, cancellationToken);
-            return AcceptanceCriteriaCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             await RollbackAsync(transaction, cancellationToken);
-            return AcceptanceCriteriaCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
 
         return Results.NoContent();
@@ -621,6 +713,26 @@ public static class AcceptanceCriterionEndpoints
             : AcceptanceCriteriaCollectionChangedProblem();
     }
 
+    private static async Task<bool> TryAdvanceCollectionVersionAsync(
+        Specification specification,
+        SpecFlowDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var affectedRows = await dbContext.Specifications
+            .Where(existingSpecification =>
+                existingSpecification.Id == specification.Id &&
+                existingSpecification.AcceptanceCriteriaVersion ==
+                specification.AcceptanceCriteriaVersion)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    existingSpecification => existingSpecification.AcceptanceCriteriaVersion,
+                    existingSpecification =>
+                        existingSpecification.AcceptanceCriteriaVersion + 1),
+                cancellationToken);
+
+        return affectedRows == 1;
+    }
+
     private static Task RollbackAsync(
         IDbContextTransaction transaction,
         CancellationToken cancellationToken) =>
@@ -641,16 +753,40 @@ public static class AcceptanceCriterionEndpoints
             title: "Acceptance criterion already exists",
             detail: "An acceptance criterion with identical content already exists in this specification.");
 
-    private static IResult AcceptanceCriterionUpdateConflictProblem(Guid criterionId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Acceptance criterion update conflict",
-            detail: $"Acceptance criterion '{criterionId}' changed while it was being updated.");
-
     private static IResult AcceptanceCriteriaCollectionChangedProblem() =>
         Results.Problem(
             statusCode: StatusCodes.Status409Conflict,
             title: "Acceptance criteria collection changed",
             detail: "The acceptance criteria collection changed while the operation was in progress.");
+
+    private static string CreateEntityTag(AcceptanceCriterion criterion) =>
+        HttpEntityTags.CreateResource(
+            "acceptance-criterion",
+            criterion.Id,
+            criterion.Version);
+
+    private static string CreateCollectionEntityTag(
+        Specification specification,
+        IEnumerable<AcceptanceCriterion> criteria) =>
+        CreateCollectionEntityTag(
+            specification.Id,
+            specification.AcceptanceCriteriaVersion,
+            criteria);
+
+    private static string CreateCollectionEntityTag(
+        Guid specificationId,
+        int collectionVersion,
+        IEnumerable<AcceptanceCriterion> criteria) =>
+        HttpEntityTags.CreateCollection(
+            "acceptance-criteria",
+            specificationId,
+            collectionVersion,
+            criteria.Select(criterion => (criterion.Id, criterion.Version)));
+
+    private static IResult WithEntityTag(
+        HttpContext httpContext,
+        AcceptanceCriterion criterion,
+        IResult result) =>
+        HttpEntityTags.WithEntityTag(httpContext, CreateEntityTag(criterion), result);
 
 }

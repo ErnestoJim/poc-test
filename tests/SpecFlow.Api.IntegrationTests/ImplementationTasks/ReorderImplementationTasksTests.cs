@@ -23,10 +23,13 @@ public sealed class ReorderImplementationTasksTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         var expectedTimestamp = factory.TimeProvider.GetUtcNow();
 
-        using var response = await client.PutAsJsonAsync(
-            $"{TasksRoute()}/order",
-            new ReorderImplementationTasksRequest(
-                [third.Id.ToString(), first.Id.ToString(), second.Id.ToString()]));
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                TasksRoute(),
+                $"{TasksRoute()}/order",
+                new ReorderImplementationTasksRequest(
+                    [third.Id.ToString(), first.Id.ToString(), second.Id.ToString()]));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(0, response.Content.Headers.ContentLength);
@@ -79,10 +82,13 @@ public sealed class ReorderImplementationTasksTests
             "Second");
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.PutAsJsonAsync(
-            $"{TasksRoute()}/order",
-            new ReorderImplementationTasksRequest(
-                [first.Id.ToString(), second.Id.ToString()]));
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                TasksRoute(),
+                $"{TasksRoute()}/order",
+                new ReorderImplementationTasksRequest(
+                    [first.Id.ToString(), second.Id.ToString()]));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var tasks = await client.GetFromJsonAsync<List<ImplementationTaskResponse>>(
@@ -112,10 +118,13 @@ public sealed class ReorderImplementationTasksTests
             context.Proposal.Id,
             "Second");
 
-        using var response = await client.PutAsJsonAsync(
-            $"{TasksRoute()}/order",
-            new ReorderImplementationTasksRequest(
-                [first.Id.ToString(), Guid.NewGuid().ToString()]));
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                TasksRoute(),
+                $"{TasksRoute()}/order",
+                new ReorderImplementationTasksRequest(
+                    [first.Id.ToString(), Guid.NewGuid().ToString()]));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
@@ -164,9 +173,15 @@ public sealed class ReorderImplementationTasksTests
         var context = await ImplementationTaskTestData
             .CreateSpecificationContextAsync(client);
 
-        using var response = await client.PutAsJsonAsync(
-            $"{ImplementationTaskTestData.TasksRoute(context.Project.Id, context.Proposal.Id)}/order",
-            new ReorderImplementationTasksRequest([]));
+        var route = ImplementationTaskTestData.TasksRoute(
+            context.Project.Id,
+            context.Proposal.Id);
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                $"{route}/order",
+                new ReorderImplementationTasksRequest([]));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }

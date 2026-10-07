@@ -40,10 +40,14 @@ public sealed class AcceptanceCriterionPersistenceTests
                     proposalId,
                     "Second");
                 firstFactory.TimeProvider.Advance(TimeSpan.FromHours(1));
-                using var reorderResponse = await firstClient.PutAsJsonAsync(
-                    $"{AcceptanceCriterionTestData.CriteriaRoute(projectId, proposalId)}/order",
-                    new ReorderAcceptanceCriteriaRequest(
-                        [second.Id.ToString(), first.Id.ToString()]));
+                var route = AcceptanceCriterionTestData.CriteriaRoute(projectId, proposalId);
+                using var reorderResponse = await HttpPreconditionTestData
+                    .PutAsJsonWithCurrentEntityTagAsync(
+                        firstClient,
+                        route,
+                        $"{route}/order",
+                        new ReorderAcceptanceCriteriaRequest(
+                            [second.Id.ToString(), first.Id.ToString()]));
                 reorderResponse.EnsureSuccessStatusCode();
             }
 

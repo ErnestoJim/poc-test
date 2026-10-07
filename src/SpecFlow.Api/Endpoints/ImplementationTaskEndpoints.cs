@@ -38,6 +38,8 @@ public static class ImplementationTaskEndpoints
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
 
         group.MapGet("/{taskId}", GetImplementationTaskAsync)
@@ -53,6 +55,8 @@ public static class ImplementationTaskEndpoints
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
 
         group.MapDelete("/{taskId}", DeleteImplementationTaskAsync)
@@ -60,21 +64,27 @@ public static class ImplementationTaskEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired);
 
         group.MapPost("/{taskId}/start", StartImplementationTaskAsync)
             .WithName("StartImplementationTask")
             .Produces<ImplementationTaskResponse>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired);
 
         group.MapPost("/{taskId}/complete", CompleteImplementationTaskAsync)
             .WithName("CompleteImplementationTask")
             .Produces<ImplementationTaskResponse>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired);
 
         return group;
     }
@@ -85,6 +95,7 @@ public static class ImplementationTaskEndpoints
         SaveImplementationTaskRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseParentIdentifiers(projectId, proposalId);
@@ -182,15 +193,18 @@ public static class ImplementationTaskEndpoints
                 cancellationToken);
         }
 
-        return Results.CreatedAtRoute(
-            "GetImplementationTask",
-            new
-            {
-                projectId = identifiers.ProjectId,
-                proposalId = identifiers.ProposalId,
-                taskId = implementationTask.Id
-            },
-            ImplementationTaskResponse.FromDomain(implementationTask));
+        return WithEntityTag(
+            httpContext,
+            implementationTask,
+            Results.CreatedAtRoute(
+                "GetImplementationTask",
+                new
+                {
+                    projectId = identifiers.ProjectId,
+                    proposalId = identifiers.ProposalId,
+                    taskId = implementationTask.Id
+                },
+                ImplementationTaskResponse.FromDomain(implementationTask)));
     }
 
     private static async Task<IResult> GetImplementationTaskAsync(
@@ -198,6 +212,7 @@ public static class ImplementationTaskEndpoints
         string proposalId,
         string taskId,
         SpecFlowDbContext dbContext,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId, taskId);
@@ -228,13 +243,17 @@ public static class ImplementationTaskEndpoints
 
         return implementationTask is null
             ? ImplementationTaskNotFoundProblem(identifiers.TaskId)
-            : Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask));
+            : WithEntityTag(
+                httpContext,
+                implementationTask,
+                Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask)));
     }
 
     private static async Task<IResult> ListImplementationTasksAsync(
         string projectId,
         string proposalId,
         SpecFlowDbContext dbContext,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseParentIdentifiers(projectId, proposalId);
@@ -263,8 +282,10 @@ public static class ImplementationTaskEndpoints
             .ThenBy(implementationTask => implementationTask.Id)
             .ToListAsync(cancellationToken);
 
-        return Results.Ok(
-            implementationTasks.Select(ImplementationTaskResponse.FromDomain));
+        return HttpEntityTags.WithEntityTag(
+            httpContext,
+            CreateCollectionEntityTag(context.Specification!, implementationTasks),
+            Results.Ok(implementationTasks.Select(ImplementationTaskResponse.FromDomain)));
     }
 
     private static async Task<IResult> UpdateImplementationTaskAsync(
@@ -274,6 +295,7 @@ public static class ImplementationTaskEndpoints
         SaveImplementationTaskRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId, taskId);
@@ -315,6 +337,14 @@ public static class ImplementationTaskEndpoints
             return ImplementationTaskNotFoundProblem(identifiers.TaskId);
         }
 
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(implementationTask));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
         var normalizedTitle = ImplementationTask.NormalizeTitle(request.Title!);
         var duplicateExists = await dbContext.ImplementationTasks
             .AsNoTracking()
@@ -336,7 +366,10 @@ public static class ImplementationTaskEndpoints
             timeProvider.GetUtcNow());
         if (!changed)
         {
-            return Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask));
+            return WithEntityTag(
+                httpContext,
+                implementationTask,
+                Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask)));
         }
 
         try
@@ -345,7 +378,7 @@ public static class ImplementationTaskEndpoints
         }
         catch (DbUpdateConcurrencyException)
         {
-            return ImplementationTaskUpdateConflictProblem(identifiers.TaskId);
+            return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
@@ -353,7 +386,10 @@ public static class ImplementationTaskEndpoints
             return ImplementationTaskAlreadyExistsProblem();
         }
 
-        return Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask));
+        return WithEntityTag(
+            httpContext,
+            implementationTask,
+            Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask)));
     }
 
     private static async Task<IResult> ReorderImplementationTasksAsync(
@@ -362,6 +398,7 @@ public static class ImplementationTaskEndpoints
         ReorderImplementationTasksRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseParentIdentifiers(projectId, proposalId);
@@ -375,6 +412,9 @@ public static class ImplementationTaskEndpoints
         {
             return order.Error;
         }
+
+        await using var transaction = await dbContext.Database
+            .BeginTransactionAsync(cancellationToken);
 
         var context = await FindSpecificationAsync(
             identifiers.ProjectId,
@@ -396,6 +436,14 @@ public static class ImplementationTaskEndpoints
             .ToListAsync(cancellationToken);
         var requestedIds = order.TaskIds!;
 
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateCollectionEntityTag(specification, implementationTasks));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
         if (implementationTasks.Count != requestedIds.Count ||
             !implementationTasks
                 .Select(implementationTask => implementationTask.Id)
@@ -414,9 +462,6 @@ public static class ImplementationTaskEndpoints
             .ToList();
         var timestamp = timeProvider.GetUtcNow();
 
-        await using var transaction = await dbContext.Database
-            .BeginTransactionAsync(cancellationToken);
-
         try
         {
             if (!await TryAdvanceCollectionVersionAsync(
@@ -425,7 +470,7 @@ public static class ImplementationTaskEndpoints
                     cancellationToken))
             {
                 await RollbackAsync(transaction, cancellationToken);
-                return ImplementationTasksCollectionChangedProblem();
+                return EndpointProblems.PreconditionFailed();
             }
 
             if (movedTasks.Count > 0)
@@ -450,16 +495,24 @@ public static class ImplementationTaskEndpoints
         catch (DbUpdateConcurrencyException)
         {
             await RollbackAsync(transaction, cancellationToken);
-            return ImplementationTasksCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             await RollbackAsync(transaction, cancellationToken);
-            return ImplementationTasksCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
 
-        return Results.NoContent();
+        return HttpEntityTags.WithEntityTag(
+            httpContext,
+            CreateCollectionEntityTag(
+                specification.Id,
+                specification.ImplementationTasksVersion + 1,
+                implementationTasks
+                    .OrderBy(implementationTask => implementationTask.Position)
+                    .ThenBy(implementationTask => implementationTask.Id)),
+            Results.NoContent());
     }
 
     private static Task<IResult> StartImplementationTaskAsync(
@@ -468,6 +521,7 @@ public static class ImplementationTaskEndpoints
         string taskId,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
         TransitionImplementationTaskAsync(
             projectId,
@@ -475,6 +529,7 @@ public static class ImplementationTaskEndpoints
             taskId,
             dbContext,
             timeProvider,
+            httpContext,
             static (implementationTask, timestamp) => implementationTask.Start(timestamp),
             cancellationToken);
 
@@ -484,6 +539,7 @@ public static class ImplementationTaskEndpoints
         string taskId,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
         TransitionImplementationTaskAsync(
             projectId,
@@ -491,6 +547,7 @@ public static class ImplementationTaskEndpoints
             taskId,
             dbContext,
             timeProvider,
+            httpContext,
             static (implementationTask, timestamp) => implementationTask.Complete(timestamp),
             cancellationToken);
 
@@ -500,6 +557,7 @@ public static class ImplementationTaskEndpoints
         string taskId,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         Action<ImplementationTask, DateTimeOffset> transition,
         CancellationToken cancellationToken)
     {
@@ -533,6 +591,14 @@ public static class ImplementationTaskEndpoints
             return ImplementationTaskNotFoundProblem(identifiers.TaskId);
         }
 
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(implementationTask));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
         try
         {
             transition(implementationTask, timeProvider.GetUtcNow());
@@ -544,10 +610,13 @@ public static class ImplementationTaskEndpoints
         }
         catch (DbUpdateConcurrencyException)
         {
-            return ImplementationTaskTransitionConflictProblem(identifiers.TaskId);
+            return EndpointProblems.PreconditionFailed();
         }
 
-        return Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask));
+        return WithEntityTag(
+            httpContext,
+            implementationTask,
+            Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask)));
     }
 
     private static async Task<IResult> DeleteImplementationTaskAsync(
@@ -556,6 +625,7 @@ public static class ImplementationTaskEndpoints
         string taskId,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId, taskId);
@@ -589,6 +659,14 @@ public static class ImplementationTaskEndpoints
             return ImplementationTaskNotFoundProblem(identifiers.TaskId);
         }
 
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(implementationTask));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
         var shiftedTasks = await dbContext.ImplementationTasks
             .Where(existingTask =>
                 existingTask.SpecificationId == specification.Id &&
@@ -611,7 +689,7 @@ public static class ImplementationTaskEndpoints
                     cancellationToken))
             {
                 await RollbackAsync(transaction, cancellationToken);
-                return ImplementationTasksCollectionChangedProblem();
+                return EndpointProblems.PreconditionFailed();
             }
 
             dbContext.ImplementationTasks.Remove(implementationTask);
@@ -640,13 +718,13 @@ public static class ImplementationTaskEndpoints
         catch (DbUpdateConcurrencyException)
         {
             await RollbackAsync(transaction, cancellationToken);
-            return ImplementationTasksCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
             await RollbackAsync(transaction, cancellationToken);
-            return ImplementationTasksCollectionChangedProblem();
+            return EndpointProblems.PreconditionFailed();
         }
 
         return Results.NoContent();
@@ -813,12 +891,6 @@ public static class ImplementationTaskEndpoints
             title: "Implementation task already exists",
             detail: "An implementation task with the same title already exists in this specification.");
 
-    private static IResult ImplementationTaskUpdateConflictProblem(Guid taskId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Implementation task update conflict",
-            detail: $"Implementation task '{taskId}' changed while it was being updated.");
-
     private static IResult ImplementationTaskTransitionConflictProblem(Guid taskId) =>
         Results.Problem(
             statusCode: StatusCodes.Status409Conflict,
@@ -830,5 +902,39 @@ public static class ImplementationTaskEndpoints
             statusCode: StatusCodes.Status409Conflict,
             title: "Implementation tasks collection changed",
             detail: "The implementation tasks collection changed while the operation was in progress.");
+
+    private static string CreateEntityTag(ImplementationTask implementationTask) =>
+        HttpEntityTags.CreateResource(
+            "implementation-task",
+            implementationTask.Id,
+            implementationTask.Version);
+
+    private static string CreateCollectionEntityTag(
+        Specification specification,
+        IEnumerable<ImplementationTask> implementationTasks) =>
+        CreateCollectionEntityTag(
+            specification.Id,
+            specification.ImplementationTasksVersion,
+            implementationTasks);
+
+    private static string CreateCollectionEntityTag(
+        Guid specificationId,
+        int collectionVersion,
+        IEnumerable<ImplementationTask> implementationTasks) =>
+        HttpEntityTags.CreateCollection(
+            "implementation-tasks",
+            specificationId,
+            collectionVersion,
+            implementationTasks.Select(implementationTask =>
+                (implementationTask.Id, implementationTask.Version)));
+
+    private static IResult WithEntityTag(
+        HttpContext httpContext,
+        ImplementationTask implementationTask,
+        IResult result) =>
+        HttpEntityTags.WithEntityTag(
+            httpContext,
+            CreateEntityTag(implementationTask),
+            result);
 
 }

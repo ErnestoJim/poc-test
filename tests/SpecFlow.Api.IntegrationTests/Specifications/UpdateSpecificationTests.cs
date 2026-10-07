@@ -26,9 +26,13 @@ public sealed class UpdateSpecificationTests
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
         const string UpdatedContent = "  # Updated\r\n\r\nNew content  \n";
 
-        using var response = await client.PutAsJsonAsync(
-            $"/api/projects/{project.Id}/proposals/{proposal.Id}/specification",
-            new SaveSpecificationRequest(UpdatedContent));
+        var route = $"/api/projects/{project.Id}/proposals/{proposal.Id}/specification";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveSpecificationRequest(UpdatedContent));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var updated = await response.Content.ReadFromJsonAsync<SpecificationResponse>();
@@ -59,9 +63,13 @@ public sealed class UpdateSpecificationTests
             "# Specification");
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
 
-        using var response = await client.PutAsJsonAsync(
-            $"/api/projects/{project.Id}/proposals/{proposal.Id}/specification",
-            new SaveSpecificationRequest(created.Content));
+        var route = $"/api/projects/{project.Id}/proposals/{proposal.Id}/specification";
+        using var response = await HttpPreconditionTestData
+            .PutAsJsonWithCurrentEntityTagAsync(
+                client,
+                route,
+                route,
+                new SaveSpecificationRequest(created.Content));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var unchanged = await response.Content.ReadFromJsonAsync<SpecificationResponse>();

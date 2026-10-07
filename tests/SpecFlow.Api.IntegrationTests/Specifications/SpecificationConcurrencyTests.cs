@@ -1,13 +1,40 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SpecFlow.Api.Contracts.Specifications;
 using SpecFlow.Api.IntegrationTests.Infrastructure;
+using SpecFlow.Infrastructure.Persistence;
 
 namespace SpecFlow.Api.IntegrationTests.Specifications;
 
 public sealed class SpecificationConcurrencyTests
 {
+    [Fact]
+    public async Task CompetingContentUpdates_AreDetectedByInternalVersion()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var context = await SpecificationTestData.CreateSpecificationContextAsync(client);
+        await using var firstScope = factory.Services.CreateAsyncScope();
+        await using var secondScope = factory.Services.CreateAsyncScope();
+        var firstDbContext = firstScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
+        var secondDbContext = secondScope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
+        var firstCopy = await firstDbContext.Specifications.SingleAsync(
+            specification => specification.Id == context.Specification.Id);
+        var secondCopy = await secondDbContext.Specifications.SingleAsync(
+            specification => specification.Id == context.Specification.Id);
+        var timestamp = factory.TimeProvider.GetUtcNow().AddHours(1);
+
+        firstCopy.UpdateContent("# First update", timestamp);
+        secondCopy.UpdateContent("# Second update", timestamp);
+        await firstDbContext.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
+            () => secondDbContext.SaveChangesAsync());
+    }
+
     [Fact]
     public async Task CompetingCreations_OnlyOneSpecificationIsCreated()
     {

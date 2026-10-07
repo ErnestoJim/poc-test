@@ -35,6 +35,8 @@ public static class SpecificationEndpoints
             .Produces<SpecificationResponse>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
 
         return group;
@@ -46,6 +48,7 @@ public static class SpecificationEndpoints
         SaveSpecificationRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId);
@@ -104,20 +107,24 @@ public static class SpecificationEndpoints
             return SpecificationAlreadyExistsProblem(identifiers.ProposalId);
         }
 
-        return Results.CreatedAtRoute(
-            "GetSpecification",
-            new
-            {
-                projectId = identifiers.ProjectId,
-                proposalId = identifiers.ProposalId
-            },
-            SpecificationResponse.FromDomain(specification));
+        return WithEntityTag(
+            httpContext,
+            specification,
+            Results.CreatedAtRoute(
+                "GetSpecification",
+                new
+                {
+                    projectId = identifiers.ProjectId,
+                    proposalId = identifiers.ProposalId
+                },
+                SpecificationResponse.FromDomain(specification)));
     }
 
     private static async Task<IResult> GetSpecificationAsync(
         string projectId,
         string proposalId,
         SpecFlowDbContext dbContext,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId);
@@ -146,7 +153,10 @@ public static class SpecificationEndpoints
 
         return specification is null
             ? EndpointProblems.SpecificationNotFound(identifiers.ProposalId)
-            : Results.Ok(SpecificationResponse.FromDomain(specification));
+            : WithEntityTag(
+                httpContext,
+                specification,
+                Results.Ok(SpecificationResponse.FromDomain(specification)));
     }
 
     private static async Task<IResult> UpdateSpecificationAsync(
@@ -155,6 +165,7 @@ public static class SpecificationEndpoints
         SaveSpecificationRequest request,
         SpecFlowDbContext dbContext,
         TimeProvider timeProvider,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var identifiers = ParseIdentifiers(projectId, proposalId);
@@ -191,10 +202,28 @@ public static class SpecificationEndpoints
             return EndpointProblems.SpecificationNotFound(identifiers.ProposalId);
         }
 
-        specification.UpdateContent(request.Content, timeProvider.GetUtcNow());
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(specification));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
 
-        return Results.Ok(SpecificationResponse.FromDomain(specification));
+        specification.UpdateContent(request.Content, timeProvider.GetUtcNow());
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return EndpointProblems.PreconditionFailed();
+        }
+
+        return WithEntityTag(
+            httpContext,
+            specification,
+            Results.Ok(SpecificationResponse.FromDomain(specification)));
     }
 
     private static (
@@ -255,5 +284,14 @@ public static class SpecificationEndpoints
             statusCode: StatusCodes.Status409Conflict,
             title: "Specification already exists",
             detail: $"Feature proposal '{proposalId}' already has a specification.");
+
+    private static string CreateEntityTag(Specification specification) =>
+        HttpEntityTags.CreateResource("specification", specification.Id, specification.Version);
+
+    private static IResult WithEntityTag(
+        HttpContext httpContext,
+        Specification specification,
+        IResult result) =>
+        HttpEntityTags.WithEntityTag(httpContext, CreateEntityTag(specification), result);
 
 }
