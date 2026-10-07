@@ -13,6 +13,7 @@ funcionalidades. Las especificaciones están en:
 - [`specs/0005-acceptance-criteria/spec.md`](specs/0005-acceptance-criteria/spec.md)
 - [`specs/0006-implementation-tasks/spec.md`](specs/0006-implementation-tasks/spec.md)
 - [`specs/0007-implementation-task-lifecycle/spec.md`](specs/0007-implementation-task-lifecycle/spec.md)
+- [`specs/0008-api-maintainability-checkpoint/spec.md`](specs/0008-api-maintainability-checkpoint/spec.md)
 
 ## Requisitos
 
