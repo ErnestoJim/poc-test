@@ -33,6 +33,8 @@ public sealed class Specification
 
     public int AcceptanceCriteriaVersion { get; private set; }
 
+    public int ImplementationTasksVersion { get; private set; }
+
     public static Specification Create(
         Guid id,
         Guid featureProposalId,

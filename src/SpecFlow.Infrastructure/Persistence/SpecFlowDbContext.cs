@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SpecFlow.Domain.AcceptanceCriteria;
 using SpecFlow.Domain.FeatureProposals;
+using SpecFlow.Domain.ImplementationTasks;
 using SpecFlow.Domain.Projects;
 using SpecFlow.Domain.Specifications;
 
@@ -12,6 +13,8 @@ public sealed class SpecFlowDbContext(DbContextOptions<SpecFlowDbContext> option
     public DbSet<AcceptanceCriterion> AcceptanceCriteria => Set<AcceptanceCriterion>();
 
     public DbSet<FeatureProposal> FeatureProposals => Set<FeatureProposal>();
+
+    public DbSet<ImplementationTask> ImplementationTasks => Set<ImplementationTask>();
 
     public DbSet<Project> Projects => Set<Project>();
 

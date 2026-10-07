@@ -11,6 +11,7 @@ funcionalidades. Las especificaciones están en:
 - [`specs/0003-feature-proposal-lifecycle/spec.md`](specs/0003-feature-proposal-lifecycle/spec.md)
 - [`specs/0004-specifications/spec.md`](specs/0004-specifications/spec.md)
 - [`specs/0005-acceptance-criteria/spec.md`](specs/0005-acceptance-criteria/spec.md)
+- [`specs/0006-implementation-tasks/spec.md`](specs/0006-implementation-tasks/spec.md)
 
 ## Requisitos
 
@@ -60,6 +61,12 @@ Endpoints:
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order`
 - `DELETE /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification/tasks`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
+- `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
+- `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order`
+- `DELETE /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -121,4 +128,20 @@ curl --request PUT \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order \
   --header 'Content-Type: application/json' \
   --data '{"criterionIds":["{firstCriterionId}","{secondCriterionId}"]}'
+```
+
+Una especificación también puede descomponerse en tareas de implementación
+ordenadas. Cada tarea tiene un título único dentro de la especificación y una
+descripción Markdown opcional:
+
+```bash
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks \
+  --header 'Content-Type: application/json' \
+  --data '{"title":"Implement domain entity","description":"Add the entity and its unit tests."}'
+
+curl --request PUT \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order \
+  --header 'Content-Type: application/json' \
+  --data '{"taskIds":["{firstTaskId}","{secondTaskId}"]}'
 ```

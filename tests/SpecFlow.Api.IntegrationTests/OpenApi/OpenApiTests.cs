@@ -90,5 +90,34 @@ public sealed class OpenApiTests
         Assert.True(acceptanceCriterionProperties.TryGetProperty("updatedAtUtc", out _));
         Assert.False(acceptanceCriterionProperties.TryGetProperty("contentHash", out _));
         Assert.False(acceptanceCriterionProperties.TryGetProperty("version", out _));
+
+        var implementationTasksPath = paths.GetProperty(
+            "/api/projects/{projectId}/proposals/{proposalId}/specification/tasks");
+        Assert.True(implementationTasksPath.TryGetProperty("post", out _));
+        Assert.True(implementationTasksPath.TryGetProperty("get", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/order")
+                .TryGetProperty("put", out _));
+        var implementationTaskPath = paths.GetProperty(
+            "/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}");
+        Assert.True(implementationTaskPath.TryGetProperty("get", out _));
+        Assert.True(implementationTaskPath.TryGetProperty("put", out _));
+        Assert.True(implementationTaskPath.TryGetProperty("delete", out _));
+
+        var implementationTaskProperties = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("ImplementationTaskResponse")
+            .GetProperty("properties");
+        Assert.True(implementationTaskProperties.TryGetProperty("id", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("specificationId", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("title", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("description", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("position", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("createdAtUtc", out _));
+        Assert.True(implementationTaskProperties.TryGetProperty("updatedAtUtc", out _));
+        Assert.False(implementationTaskProperties.TryGetProperty("normalizedTitle", out _));
+        Assert.False(implementationTaskProperties.TryGetProperty("version", out _));
     }
 }

@@ -43,5 +43,8 @@ internal sealed class SpecificationConfiguration : IEntityTypeConfiguration<Spec
         builder.Property(specification => specification.AcceptanceCriteriaVersion)
             .IsConcurrencyToken()
             .IsRequired();
+
+        builder.Property(specification => specification.ImplementationTasksVersion)
+            .IsRequired();
     }
 }
