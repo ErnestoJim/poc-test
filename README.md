@@ -10,18 +10,21 @@ proyecto. Las propuestas y las tareas cuentan con ciclos de vida explícitos, y
 los recursos editables utilizan concurrencia optimista mediante ETags e
 `If-Match`.
 
-Las especificaciones que definen el comportamiento implementado están en:
+## Metodología spec-driven
 
-- [`specs/0001-projects/spec.md`](specs/0001-projects/spec.md)
-- [`specs/0002-feature-proposals/spec.md`](specs/0002-feature-proposals/spec.md)
-- [`specs/0003-feature-proposal-lifecycle/spec.md`](specs/0003-feature-proposal-lifecycle/spec.md)
-- [`specs/0004-specifications/spec.md`](specs/0004-specifications/spec.md)
-- [`specs/0005-acceptance-criteria/spec.md`](specs/0005-acceptance-criteria/spec.md)
-- [`specs/0006-implementation-tasks/spec.md`](specs/0006-implementation-tasks/spec.md)
-- [`specs/0007-implementation-task-lifecycle/spec.md`](specs/0007-implementation-task-lifecycle/spec.md)
-- [`specs/0008-api-maintainability-checkpoint/spec.md`](specs/0008-api-maintainability-checkpoint/spec.md)
-- [`specs/0009-http-concurrency/spec.md`](specs/0009-http-concurrency/spec.md)
-- [`specs/0010-technical-decisions/spec.md`](specs/0010-technical-decisions/spec.md)
+La documentación distingue las reglas compartidas de los incrementos
+funcionales:
+
+- [`specs/constitution.md`](specs/constitution.md) define los principios y
+  convenciones vigentes.
+- [`specs/README.md`](specs/README.md) explica la evolución metodológica y enlaza
+  el histórico completo.
+- [`specs/spec-template.md`](specs/spec-template.md) es la plantilla compacta
+  para nuevas especificaciones.
+
+Las specs 0001–0010 conservan el formato exhaustivo original como material de
+aprendizaje. A partir de la 0011, cada documento describe principalmente el
+delta respecto de la constitución.
 
 ## Requisitos
 

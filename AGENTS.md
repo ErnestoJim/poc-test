@@ -2,54 +2,59 @@
 
 ## Propósito del repositorio
 
-SpecFlow es un POC para aprender desarrollo asistido por IA con Codex mediante un flujo spec-driven sobre .NET y C#.
+SpecFlow es un proyecto de aprendizaje sobre desarrollo asistido por IA con
+Codex, spec-driven development, .NET y C#.
 
-El producto gestiona progresivamente proyectos, propuestas, especificaciones, tareas, criterios de aceptación y decisiones técnicas. Skills, MCP, frontend e integración con modelos de IA son objetivos posteriores: no deben anticiparse sin una especificación aprobada.
+El producto gestiona progresivamente proyectos, propuestas, especificaciones,
+criterios de aceptación, tareas y decisiones técnicas. Las capacidades nuevas no
+deben anticiparse sin una especificación aprobada.
 
-## Estructura y responsabilidades
+## Fuentes de verdad
 
-- `src/SpecFlow.Domain`: entidades, reglas e invariantes del dominio. Debe permanecer independiente de ASP.NET Core, EF Core y detalles de infraestructura.
-- `src/SpecFlow.Infrastructure`: persistencia con EF Core, configuración de entidades y migraciones.
-- `src/SpecFlow.Api`: composición de la aplicación, configuración HTTP, endpoints, OpenAPI y Problem Details.
-- `tests/SpecFlow.Domain.Tests`: pruebas unitarias de reglas e invariantes del dominio.
-- `tests/SpecFlow.Api.IntegrationTests`: pruebas del contrato HTTP y de la integración real con EF Core y SQLite.
-- `specs`: especificaciones versionadas que definen alcance, comportamiento y criterios de aceptación.
+Antes de modificar el repositorio, leer:
 
-No crear una capa `Application` hasta que exista lógica de casos de uso que justifique separarla. No introducir CQRS, MediatR, event sourcing, repositorios genéricos ni abstracciones sin un uso concreto.
+1. este archivo para las instrucciones operativas;
+2. `README.md` para preparar y utilizar el proyecto;
+3. `specs/constitution.md` para las reglas compartidas vigentes;
+4. `specs/README.md` para el proceso y el histórico;
+5. la especificación numerada relevante para el comportamiento concreto.
 
-## Flujo spec-driven
+La constitución no sustituye los contratos particulares de las specs. Una spec
+no puede contradecirla silenciosamente: debe proponer una enmienda explícita.
+Las specs 0001 a 0010 se conservan como registro histórico; las nuevas utilizan
+`specs/spec-template.md`.
 
-1. Leer `AGENTS.md`, el `README.md` y la especificación relevante antes de modificar código.
-2. Inspeccionar el estado del repositorio y preservar los cambios existentes del usuario.
-3. Aclarar o actualizar primero la especificación cuando cambien alcance, contratos o decisiones importantes.
-4. Implementar en pasos verticales pequeños, trazables a criterios de aceptación.
-5. Añadir o actualizar pruebas junto con el comportamiento.
-6. Ejecutar las verificaciones proporcionales al cambio y comunicar resultados y decisiones pendientes.
+## Estructura del repositorio
 
-La fuente principal de verdad para la funcionalidad inicial es `specs/0001-projects/spec.md`. No ampliar silenciosamente su alcance.
+- `src/SpecFlow.Domain`: dominio independiente de ASP.NET Core, EF Core y
+  detalles de infraestructura.
+- `src/SpecFlow.Infrastructure`: persistencia, configuración de EF Core y
+  migraciones.
+- `src/SpecFlow.Api`: composición, contratos HTTP, endpoints, OpenAPI y Problem
+  Details.
+- `tests/SpecFlow.Domain.Tests`: pruebas unitarias del dominio.
+- `tests/SpecFlow.Api.IntegrationTests`: contrato HTTP e integración con SQLite.
+- `specs`: constitución, plantilla e histórico de especificaciones versionadas.
 
-## Convenciones .NET y C#
+Las responsabilidades y restricciones arquitectónicas completas están en la
+constitución; no deben duplicarse aquí.
 
-- Usar .NET 10 y C# 14 según `global.json` y `Directory.Build.props`.
-- Mantener nullable reference types e implicit usings habilitados.
-- Tratar warnings como errores y respetar los analizadores configurados.
-- Preferir código simple, explícito y mantenible frente a abstracciones prematuras.
-- Mantener las reglas del dominio dentro de `SpecFlow.Domain`; no duplicarlas en endpoints o persistencia.
-- Usar nombres técnicos e identificadores en inglés.
-- Usar `TimeProvider` para comportamiento dependiente del tiempo y almacenar fechas en UTC.
-- Exponer errores HTTP consistentes mediante Problem Details.
+## Flujo de trabajo
 
-## Persistencia y migraciones
+1. Inspeccionar el estado del repositorio y preservar los cambios existentes.
+2. Identificar la constitución y las specs que gobiernan el cambio.
+3. Crear o actualizar primero la spec cuando cambien alcance, contratos o
+   decisiones importantes.
+4. Esperar aprobación explícita antes de implementar comportamiento nuevo.
+5. Implementar en pasos verticales pequeños y trazables a criterios de
+   aceptación.
+6. Añadir o actualizar pruebas junto con el comportamiento.
+7. Ejecutar verificaciones proporcionales y registrar la evidencia en la spec.
+8. Comunicar resultados, desviaciones y decisiones pendientes.
 
-SQLite es la base de datos persistente local. La configuración de EF Core debe conservar la posibilidad de migrar posteriormente a PostgreSQL sin introducir ahora infraestructura para ese proveedor.
-
-Todo cambio de esquema debe incluir una migración de EF Core en `src/SpecFlow.Infrastructure/Persistence/Migrations` y pruebas relevantes. No editar manualmente una migración existente salvo que exista una razón explícita y revisada.
-
-Crear una migración con:
-
-```bash
-dotnet ef migrations add <MigrationName> --project src/SpecFlow.Infrastructure --startup-project src/SpecFlow.Api --output-dir Persistence/Migrations
-```
+No reescribir specs implementadas para adaptarlas a la plantilla actual. Una
+modificación funcional posterior debe quedar en una nueva spec que identifique
+el comportamiento sustituido.
 
 ## Comandos de trabajo
 
@@ -62,34 +67,27 @@ dotnet format SpecFlow.slnx --verify-no-changes --no-restore
 dotnet run --project src/SpecFlow.Api
 ```
 
-No usar `--no-restore` o `--no-build` si el paso requerido no se ha ejecutado antes en el entorno actual.
+No usar `--no-restore` o `--no-build` si el paso requerido no se ha ejecutado
+antes en el entorno actual.
 
-## Estrategia de pruebas
+Crear una migración con:
 
-- Probar invariantes y normalización del dominio con pruebas unitarias rápidas y deterministas.
-- Probar endpoints, validación, Problem Details, persistencia y unicidad con pruebas de integración.
-- Las pruebas de integración deben usar SQLite real, normalmente en memoria con una conexión abierta durante cada prueba, para conservar su comportamiento relacional.
-- Controlar el tiempo en pruebas mediante un `TimeProvider` sustituible.
-- Añadir una prueba de regresión para cada defecto corregido cuando sea razonable.
+```bash
+dotnet ef migrations add <MigrationName> --project src/SpecFlow.Infrastructure --startup-project src/SpecFlow.Api --output-dir Persistence/Migrations
+```
 
-## Definición de terminado
-
-Un cambio está terminado cuando:
-
-- satisface la especificación y sus criterios de aceptación;
-- mantiene los límites entre proyectos;
-- incluye pruebas adecuadas y estas pasan;
-- compila sin warnings;
-- `dotnet format` no detecta cambios;
-- incluye migración cuando cambia el esquema;
-- actualiza documentación o especificación cuando corresponde;
-- no incorpora funcionalidad fuera de alcance.
+Todo cambio de esquema debe incluir una migración y pruebas relevantes. No
+editar una migración ya integrada salvo que exista una razón explícita y
+revisada.
 
 ## Límites operativos
 
-- No modificar, descartar ni sobrescribir trabajo ajeno sin autorización explícita.
-- No ejecutar acciones destructivas ni comandos Git que cambien historial, staging o ramas sin petición expresa.
-- No instalar paquetes, herramientas o servicios sin una necesidad concreta y autorización cuando corresponda.
-- No añadir autenticación, frontend, MCP, IA, Docker, Aspire o despliegue hasta que una especificación aprobada los incluya.
+- No modificar, descartar ni sobrescribir trabajo ajeno sin autorización.
+- No ejecutar acciones destructivas ni cambiar historial, staging o ramas sin
+  una petición expresa.
+- No instalar paquetes, herramientas o servicios sin una necesidad concreta y
+  la autorización correspondiente.
 - No almacenar secretos, credenciales ni datos sensibles en el repositorio.
-- Ante una decisión que cambie significativamente la arquitectura, presentar opciones y esperar aprobación.
+- Ante una decisión que cambie significativamente la arquitectura, presentar
+  opciones y esperar aprobación.
+- Aplicar siempre la definición de terminado de `specs/constitution.md`.
