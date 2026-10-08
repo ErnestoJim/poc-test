@@ -20,7 +20,8 @@ internal sealed class HttpConcurrencyOpenApiTransformer : IOpenApiOperationTrans
         "AcceptTechnicalDecision",
         "RejectTechnicalDecision",
         "SupersedeTechnicalDecision",
-        "DeleteTechnicalDecision"
+        "DeleteTechnicalDecision",
+        "ReplaceImplementationTaskAcceptanceCriteria"
     ];
 
     private static readonly HashSet<string> EntityTagResponseOperations =
@@ -45,7 +46,9 @@ internal sealed class HttpConcurrencyOpenApiTransformer : IOpenApiOperationTrans
         "UpdateTechnicalDecision",
         "AcceptTechnicalDecision",
         "RejectTechnicalDecision",
-        "SupersedeTechnicalDecision"
+        "SupersedeTechnicalDecision",
+        "GetImplementationTaskAcceptanceCriteria",
+        "ReplaceImplementationTaskAcceptanceCriteria"
     ];
 
     public Task TransformAsync(

@@ -5,6 +5,7 @@ using SpecFlow.Domain.ImplementationTasks;
 using SpecFlow.Domain.Projects;
 using SpecFlow.Domain.Specifications;
 using SpecFlow.Domain.TechnicalDecisions;
+using SpecFlow.Domain.Traceability;
 
 namespace SpecFlow.Infrastructure.Persistence;
 
@@ -16,6 +17,9 @@ public sealed class SpecFlowDbContext(DbContextOptions<SpecFlowDbContext> option
     public DbSet<FeatureProposal> FeatureProposals => Set<FeatureProposal>();
 
     public DbSet<ImplementationTask> ImplementationTasks => Set<ImplementationTask>();
+
+    public DbSet<ImplementationTaskAcceptanceCriterion>
+        ImplementationTaskAcceptanceCriteria => Set<ImplementationTaskAcceptanceCriterion>();
 
     public DbSet<Project> Projects => Set<Project>();
 

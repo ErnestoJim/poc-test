@@ -75,6 +75,9 @@ internal sealed class ImplementationTaskConfiguration
             .IsConcurrencyToken()
             .IsRequired();
 
+        builder.Property(implementationTask => implementationTask.AcceptanceCriteriaVersion)
+            .IsRequired();
+
         builder.HasIndex(implementationTask => new
         {
             implementationTask.SpecificationId,

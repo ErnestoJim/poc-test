@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aprobada para implementación el 8 de octubre de 2026.
+Implementada y verificada el 8 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
 
 ## Base documental
 
@@ -262,4 +263,8 @@ publicados para tareas y criterios.
 
 ## Evidencia de cierre
 
-Pendiente de implementación.
+- Compilación sin warnings ni errores.
+- 108 pruebas de dominio superadas.
+- 296 pruebas de integración superadas.
+- Formato verificado sin cambios.
+- Modelo de EF Core sin migraciones pendientes.

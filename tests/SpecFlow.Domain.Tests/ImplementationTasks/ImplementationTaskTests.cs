@@ -34,6 +34,7 @@ public sealed class ImplementationTaskTests
         Assert.Equal(CreatedAtUtc, implementationTask.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, implementationTask.UpdatedAtUtc);
         Assert.Equal(0, implementationTask.Version);
+        Assert.Equal(0, implementationTask.AcceptanceCriteriaVersion);
     }
 
     [Theory]

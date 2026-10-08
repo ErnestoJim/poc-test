@@ -554,6 +554,11 @@ public static class AcceptanceCriterionEndpoints
                 return EndpointProblems.PreconditionFailed();
             }
 
+            await InvalidateLinkedTaskAcceptanceCriteriaAsync(
+                criterion.Id,
+                dbContext,
+                cancellationToken);
+
             dbContext.AcceptanceCriteria.Remove(criterion);
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -732,6 +737,20 @@ public static class AcceptanceCriterionEndpoints
 
         return affectedRows == 1;
     }
+
+    private static Task<int> InvalidateLinkedTaskAcceptanceCriteriaAsync(
+        Guid criterionId,
+        SpecFlowDbContext dbContext,
+        CancellationToken cancellationToken) =>
+        dbContext.ImplementationTasks
+            .Where(task => dbContext.ImplementationTaskAcceptanceCriteria.Any(link =>
+                link.AcceptanceCriterionId == criterionId &&
+                link.ImplementationTaskId == task.Id))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    task => task.AcceptanceCriteriaVersion,
+                    task => task.AcceptanceCriteriaVersion + 1),
+                cancellationToken);
 
     private static Task RollbackAsync(
         IDbContextTransaction transaction,

@@ -82,6 +82,9 @@ Endpoints:
 - `DELETE /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria`
+- `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}/tasks`
 - `POST /api/projects/{projectId}/technical-decisions`
 - `GET /api/projects/{projectId}/technical-decisions`
 - `GET /api/projects/{projectId}/technical-decisions/{decisionId}`
@@ -183,6 +186,22 @@ curl --request POST \
 Las tareas comienzan en estado `pending`, pasan a `in_progress` al iniciarse y
 terminan en `completed`. Una tarea completada no puede reabrirse, aunque puede
 seguir editándose, reordenándose o eliminándose.
+
+Los criterios y las tareas de una misma especificación pueden vincularse para
+mantener trazabilidad muchos-a-muchos. La relación se consulta en ambas
+direcciones y se sustituye como un conjunto completo mediante el ETag propio de
+la colección, sin cambiar el estado ni el ETag individual de sus extremos:
+
+```bash
+curl --include \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria
+
+curl --request PUT \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria \
+  --header 'Content-Type: application/json' \
+  --header 'If-Match: {traceabilityEtag}' \
+  --data '{"acceptanceCriterionIds":["{criterionId}"]}'
+```
 
 Cada proyecto también puede mantener un registro cronológico de decisiones
 técnicas. Cada decisión contiene un título y un documento Markdown flexible; los

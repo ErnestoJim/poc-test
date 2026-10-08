@@ -71,7 +71,7 @@ implementación.
 | [0009](0009-http-concurrency/spec.md) | Concurrencia HTTP | Implementada |
 | [0010](0010-technical-decisions/spec.md) | Decisiones técnicas | Implementada |
 | [0011](0011-technical-decision-lifecycle/spec.md) | Ciclo de vida de decisiones | Implementada |
-| [0012](0012-acceptance-criterion-task-traceability/spec.md) | Trazabilidad entre criterios y tareas | Aprobada |
+| [0012](0012-acceptance-criterion-task-traceability/spec.md) | Trazabilidad entre criterios y tareas | Implementada |
 
 ## Crear la siguiente spec
 

@@ -52,6 +52,8 @@ public sealed class ImplementationTask
 
     public int Version { get; private set; }
 
+    public int AcceptanceCriteriaVersion { get; private set; }
+
     public static ImplementationTask Create(
         Guid id,
         Guid specificationId,

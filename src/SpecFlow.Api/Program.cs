@@ -26,6 +26,7 @@ app.MapSpecificationEndpoints();
 app.MapAcceptanceCriterionEndpoints();
 app.MapImplementationTaskEndpoints();
 app.MapTechnicalDecisionEndpoints();
+app.MapTraceabilityEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

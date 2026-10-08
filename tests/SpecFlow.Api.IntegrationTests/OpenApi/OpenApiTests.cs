@@ -33,7 +33,8 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/technical-decisions/{decisionId}", "delete"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}/accept", "post"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}/reject", "post"),
-            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post")
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria", "put")
         ];
 
         foreach (var operationReference in conditionalOperations)
@@ -72,7 +73,9 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put", "200"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}/accept", "post", "200"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}/reject", "post", "200"),
-            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post", "200")
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria", "get", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria", "put", "204")
         ];
 
         foreach (var responseReference in entityTagResponses)
@@ -133,7 +136,10 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/technical-decisions/{decisionId}", "delete", "DeleteTechnicalDecision"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}/accept", "post", "AcceptTechnicalDecision"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}/reject", "post", "RejectTechnicalDecision"),
-            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post", "SupersedeTechnicalDecision")
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post", "SupersedeTechnicalDecision"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria", "get", "GetImplementationTaskAcceptanceCriteria"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria", "put", "ReplaceImplementationTaskAcceptanceCriteria"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}/tasks", "get", "GetAcceptanceCriterionImplementationTasks")
         ];
 
         Assert.Equal(
@@ -298,6 +304,31 @@ public sealed class OpenApiTests
             paths.GetProperty(
                     "/api/projects/{projectId}/technical-decisions/{decisionId}/supersede")
                 .TryGetProperty("post", out _));
+
+        var taskTraceabilityPath = paths.GetProperty(
+            "/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/acceptance-criteria");
+        Assert.True(taskTraceabilityPath.TryGetProperty("get", out _));
+        Assert.True(taskTraceabilityPath.TryGetProperty("put", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}/tasks")
+                .TryGetProperty("get", out _));
+
+        var taskTraceabilityProperties = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("ImplementationTaskAcceptanceCriteriaResponse")
+            .GetProperty("properties");
+        Assert.True(
+            taskTraceabilityProperties.TryGetProperty("acceptanceCriterionIds", out _));
+
+        var criterionTraceabilityProperties = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("AcceptanceCriterionImplementationTasksResponse")
+            .GetProperty("properties");
+        Assert.True(
+            criterionTraceabilityProperties.TryGetProperty("implementationTaskIds", out _));
 
         var technicalDecisionProperties = document.RootElement
             .GetProperty("components")
