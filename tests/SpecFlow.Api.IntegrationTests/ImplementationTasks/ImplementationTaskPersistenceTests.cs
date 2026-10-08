@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using SpecFlow.Api.Contracts.ImplementationTasks;
 using SpecFlow.Api.IntegrationTests.Infrastructure;
+using SpecFlow.Api.IntegrationTests.Specifications;
 
 namespace SpecFlow.Api.IntegrationTests.ImplementationTasks;
 
@@ -40,6 +41,20 @@ public sealed class ImplementationTaskPersistenceTests
                     projectId,
                     proposalId,
                     "Second");
+                var route = ImplementationTaskTestData.TasksRoute(projectId, proposalId);
+                using var reorderResponse = await HttpPreconditionTestData
+                    .PutAsJsonWithCurrentEntityTagAsync(
+                        firstClient,
+                        route,
+                        $"{route}/order",
+                        new ReorderImplementationTasksRequest(
+                            [second.Id.ToString(), first.Id.ToString()]));
+                reorderResponse.EnsureSuccessStatusCode();
+                await SpecificationTestData.ApproveWithCoverageAsync(
+                    firstClient,
+                    projectId,
+                    proposalId,
+                    first.Id);
                 await ImplementationTaskTestData.StartTaskAsync(
                     firstClient,
                     projectId,
@@ -50,15 +65,6 @@ public sealed class ImplementationTaskPersistenceTests
                     projectId,
                     proposalId,
                     second.Id);
-                var route = ImplementationTaskTestData.TasksRoute(projectId, proposalId);
-                using var reorderResponse = await HttpPreconditionTestData
-                    .PutAsJsonWithCurrentEntityTagAsync(
-                        firstClient,
-                        route,
-                        $"{route}/order",
-                        new ReorderImplementationTasksRequest(
-                            [second.Id.ToString(), first.Id.ToString()]));
-                reorderResponse.EnsureSuccessStatusCode();
             }
 
             using var secondFactory = new SpecFlowApiFactory(connectionString);

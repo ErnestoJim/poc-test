@@ -105,6 +105,12 @@ public static class AcceptanceCriterionEndpoints
         }
 
         var specification = context.Specification!;
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
+        }
+
         var contentHash = AcceptanceCriterion.CalculateContentHash(request.Content!);
         var duplicateExists = await dbContext.AcceptanceCriteria
             .AnyAsync(
@@ -137,6 +143,7 @@ public static class AcceptanceCriterionEndpoints
         {
             if (!await TryAdvanceCollectionVersionAsync(
                     specification,
+                    advanceAggregateVersion: true,
                     dbContext,
                     cancellationToken))
             {
@@ -299,7 +306,8 @@ public static class AcceptanceCriterionEndpoints
             return context.Error;
         }
 
-        var specificationId = context.Specification!.Id;
+        var specification = context.Specification!;
+        var specificationId = specification.Id;
         var criterion = await dbContext.AcceptanceCriteria
             .SingleOrDefaultAsync(
                 existingCriterion =>
@@ -318,6 +326,12 @@ public static class AcceptanceCriterionEndpoints
         if (preconditionError is not null)
         {
             return preconditionError;
+        }
+
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
         }
 
         var contentHash = AcceptanceCriterion.CalculateContentHash(request.Content!);
@@ -344,17 +358,33 @@ public static class AcceptanceCriterionEndpoints
                 Results.Ok(AcceptanceCriterionResponse.FromDomain(criterion)));
         }
 
+        await using var transaction = await dbContext.Database
+            .BeginTransactionAsync(cancellationToken);
+
         try
         {
+            if (!await SpecificationLifecycle.TryAdvanceAggregateVersionAsync(
+                    specification,
+                    SpecificationStatus.Draft,
+                    dbContext,
+                    cancellationToken))
+            {
+                await RollbackAsync(transaction, cancellationToken);
+                return EndpointProblems.PreconditionFailed();
+            }
+
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
+            await RollbackAsync(transaction, cancellationToken);
             return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
+            await RollbackAsync(transaction, cancellationToken);
             return AcceptanceCriterionAlreadyExistsProblem();
         }
 
@@ -415,6 +445,12 @@ public static class AcceptanceCriterionEndpoints
             return preconditionError;
         }
 
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
+        }
+
         if (criteria.Count != requestedIds.Count ||
             !criteria.Select(criterion => criterion.Id).ToHashSet().SetEquals(requestedIds))
         {
@@ -432,6 +468,7 @@ public static class AcceptanceCriterionEndpoints
         {
             if (!await TryAdvanceCollectionVersionAsync(
                     specification,
+                    movedCriteria.Count > 0,
                     dbContext,
                     cancellationToken))
             {
@@ -529,6 +566,12 @@ public static class AcceptanceCriterionEndpoints
             return preconditionError;
         }
 
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
+        }
+
         var shiftedCriteria = await dbContext.AcceptanceCriteria
             .Where(existingCriterion =>
                 existingCriterion.SpecificationId == specification.Id &&
@@ -547,6 +590,7 @@ public static class AcceptanceCriterionEndpoints
         {
             if (!await TryAdvanceCollectionVersionAsync(
                     specification,
+                    advanceAggregateVersion: true,
                     dbContext,
                     cancellationToken))
             {
@@ -713,26 +757,47 @@ public static class AcceptanceCriterionEndpoints
                     criterion.ContentHash == contentHash,
                 cancellationToken);
 
-        return duplicateExists
-            ? AcceptanceCriterionAlreadyExistsProblem()
-            : AcceptanceCriteriaCollectionChangedProblem();
+        if (duplicateExists)
+        {
+            return AcceptanceCriterionAlreadyExistsProblem();
+        }
+
+        var status = await dbContext.Specifications
+            .AsNoTracking()
+            .Where(specification => specification.Id == specificationId)
+            .Select(specification => specification.Status)
+            .SingleAsync(cancellationToken);
+
+        return status == SpecificationStatus.Draft
+            ? AcceptanceCriteriaCollectionChangedProblem()
+            : EndpointProblems.SpecificationNotEditable();
     }
 
     private static async Task<bool> TryAdvanceCollectionVersionAsync(
         Specification specification,
+        bool advanceAggregateVersion,
         SpecFlowDbContext dbContext,
         CancellationToken cancellationToken)
     {
         var affectedRows = await dbContext.Specifications
             .Where(existingSpecification =>
                 existingSpecification.Id == specification.Id &&
+                existingSpecification.Version == specification.Version &&
+                existingSpecification.Status == SpecificationStatus.Draft &&
                 existingSpecification.AcceptanceCriteriaVersion ==
                 specification.AcceptanceCriteriaVersion)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(
-                    existingSpecification => existingSpecification.AcceptanceCriteriaVersion,
-                    existingSpecification =>
-                        existingSpecification.AcceptanceCriteriaVersion + 1),
+                setters => setters
+                    .SetProperty(
+                        existingSpecification =>
+                            existingSpecification.AcceptanceCriteriaVersion,
+                        existingSpecification =>
+                            existingSpecification.AcceptanceCriteriaVersion + 1)
+                    .SetProperty(
+                        existingSpecification => existingSpecification.Version,
+                        existingSpecification => advanceAggregateVersion
+                            ? existingSpecification.Version + 1
+                            : existingSpecification.Version),
                 cancellationToken);
 
         return affectedRows == 1;

@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aprobada para implementación el 8 de octubre de 2026.
+Implementada y verificada el 8 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
 
 ## Base documental
 
@@ -271,10 +272,8 @@ Nueva migración: `AddSpecificationLifecycle`.
 
 ## Evidencia de cierre
 
-Completar al finalizar la implementación:
-
-- compilación;
-- pruebas de dominio e integración;
-- formato;
-- estado de migraciones;
-- verificación particular del incremento.
+- Compilación sin warnings ni errores.
+- 119 pruebas de dominio superadas.
+- 304 pruebas de integración superadas.
+- Formato verificado sin cambios.
+- Modelo de EF Core sin migraciones pendientes.

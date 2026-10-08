@@ -6,9 +6,9 @@ spec-driven development, skills y MCP.
 La aplicación proporciona una API para gestionar proyectos, propuestas de
 funcionalidades, especificaciones en Markdown, criterios de aceptación y tareas
 de implementación. También mantiene un registro de decisiones técnicas por
-proyecto. Las propuestas y las tareas cuentan con ciclos de vida explícitos, y
-los recursos editables utilizan concurrencia optimista mediante ETags e
-`If-Match`.
+proyecto. Las propuestas, especificaciones, tareas y decisiones técnicas cuentan
+con ciclos de vida explícitos, y los recursos editables utilizan concurrencia
+optimista mediante ETags e `If-Match`.
 
 ## Metodología spec-driven
 
@@ -68,6 +68,9 @@ Endpoints:
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification`
 - `GET /api/projects/{projectId}/proposals/{proposalId}/specification`
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification/approve`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented`
+- `POST /api/projects/{projectId}/proposals/{proposalId}/specification/verify`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria`
 - `GET /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria`
 - `GET /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
@@ -184,8 +187,8 @@ curl --request POST \
 ```
 
 Las tareas comienzan en estado `pending`, pasan a `in_progress` al iniciarse y
-terminan en `completed`. Una tarea completada no puede reabrirse, aunque puede
-seguir editándose, reordenándose o eliminándose.
+terminan en `completed`. Solo pueden iniciarse y completarse cuando la
+especificación está aprobada.
 
 Los criterios y las tareas de una misma especificación pueden vincularse para
 mantener trazabilidad muchos-a-muchos. La relación se consulta en ambas
@@ -202,6 +205,29 @@ curl --request PUT \
   --header 'If-Match: {traceabilityEtag}' \
   --data '{"acceptanceCriterionIds":["{criterionId}"]}'
 ```
+
+Las especificaciones comienzan como `draft`. Aprobar exige al menos un criterio,
+una tarea y que todos los criterios estén vinculados con alguna tarea. La
+aprobación congela contenido y planificación; entonces se pueden ejecutar las
+tareas. Cuando todas terminan, la especificación puede declararse implementada
+y después verificarse explícitamente:
+
+```bash
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/approve \
+  --header 'If-Match: {specificationEtag}'
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented \
+  --header 'If-Match: {updatedSpecificationEtag}'
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/verify \
+  --header 'If-Match: {implementedSpecificationEtag}'
+```
+
+El ETag de una especificación representa el plan completo y cambia cuando se
+modifican su contenido, criterios, tareas, estados de tareas o trazabilidad.
 
 Cada proyecto también puede mantener un registro cronológico de decisiones
 técnicas. Cada decisión contiene un título y un documento Markdown flexible; los

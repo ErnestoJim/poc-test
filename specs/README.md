@@ -72,7 +72,7 @@ implementación.
 | [0010](0010-technical-decisions/spec.md) | Decisiones técnicas | Implementada |
 | [0011](0011-technical-decision-lifecycle/spec.md) | Ciclo de vida de decisiones | Implementada |
 | [0012](0012-acceptance-criterion-task-traceability/spec.md) | Trazabilidad entre criterios y tareas | Implementada |
-| [0013](0013-specification-lifecycle/spec.md) | Ciclo de vida de especificaciones | Aprobada |
+| [0013](0013-specification-lifecycle/spec.md) | Ciclo de vida de especificaciones | Implementada |
 
 ## Crear la siguiente spec
 

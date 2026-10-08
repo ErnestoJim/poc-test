@@ -5,6 +5,8 @@ using SpecFlow.Api.Contracts.AcceptanceCriteria;
 using SpecFlow.Api.Contracts.ImplementationTasks;
 using SpecFlow.Api.IntegrationTests.AcceptanceCriteria;
 using SpecFlow.Api.IntegrationTests.Infrastructure;
+using SpecFlow.Api.IntegrationTests.Specifications;
+using SpecFlow.Api.IntegrationTests.Traceability;
 
 namespace SpecFlow.Api.IntegrationTests.ImplementationTasks;
 
@@ -21,6 +23,11 @@ public sealed class ImplementationTaskHttpConcurrencyTests
             context.Project.Id,
             context.Proposal.Id,
             "Task");
+        await SpecificationTestData.ApproveWithCoverageAsync(
+            client,
+            context.Project.Id,
+            context.Proposal.Id,
+            implementationTask.Id);
         var taskRoute =
             $"{ImplementationTaskTestData.TasksRoute(context.Project.Id, context.Proposal.Id)}/{implementationTask.Id}";
 
@@ -104,6 +111,11 @@ public sealed class ImplementationTaskHttpConcurrencyTests
             context.Project.Id,
             context.Proposal.Id,
             "Task");
+        await SpecificationTestData.ApproveWithCoverageAsync(
+            client,
+            context.Project.Id,
+            context.Proposal.Id,
+            implementationTask.Id);
         var taskRoute =
             $"{ImplementationTaskTestData.TasksRoute(context.Project.Id, context.Proposal.Id)}/{implementationTask.Id}";
         var pendingEntityTag = await HttpPreconditionTestData.GetEntityTagAsync(client, taskRoute);
@@ -343,6 +355,23 @@ public sealed class ImplementationTaskHttpConcurrencyTests
         var criteriaAfterCriterionUpdate = await HttpPreconditionTestData.GetEntityTagAsync(
             client,
             criteriaRoute);
+        var linksRoute = TraceabilityTestData.TaskLinksRoute(
+            context.Project.Id,
+            context.Proposal.Id,
+            implementationTask.Id);
+        var linksEntityTag = await HttpPreconditionTestData.GetEntityTagAsync(
+            client,
+            linksRoute);
+        using var linksResponse = await TraceabilityTestData.ReplaceLinksAsync(
+            client,
+            linksRoute,
+            linksEntityTag,
+            criterion.Id);
+        linksResponse.EnsureSuccessStatusCode();
+        await SpecificationTestData.ApproveAsync(
+            client,
+            context.Project.Id,
+            context.Proposal.Id);
         using var taskResponse = await HttpPreconditionTestData.PostWithCurrentEntityTagAsync(
             client,
             taskRoute,

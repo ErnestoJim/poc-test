@@ -27,6 +27,18 @@ internal static class EndpointProblems
             title: "Specification not found",
             detail: $"Feature proposal '{proposalId}' does not have a specification.");
 
+    public static IResult SpecificationNotEditable() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Specification is not editable",
+            detail: "Only a draft specification can change its content or planning.");
+
+    public static IResult SpecificationNotApprovedForImplementation() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Specification is not approved for implementation",
+            detail: "Implementation tasks can only transition while their specification is approved.");
+
     public static IResult TechnicalDecisionNotFound(Guid decisionId) =>
         Results.Problem(
             statusCode: StatusCodes.Status404NotFound,

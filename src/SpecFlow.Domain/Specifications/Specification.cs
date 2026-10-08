@@ -27,6 +27,14 @@ public sealed class Specification
 
     public string Content { get; private set; } = string.Empty;
 
+    public SpecificationStatus Status { get; private set; } = SpecificationStatus.Draft;
+
+    public DateTimeOffset? ApprovedAtUtc { get; private set; }
+
+    public DateTimeOffset? ImplementedAtUtc { get; private set; }
+
+    public DateTimeOffset? VerifiedAtUtc { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
@@ -76,6 +84,8 @@ public sealed class Specification
             throw new ArgumentException("The specification content is invalid.", nameof(content));
         }
 
+        EnsureEditable();
+
         if (string.Equals(Content, content, StringComparison.Ordinal))
         {
             return false;
@@ -85,6 +95,74 @@ public sealed class Specification
         UpdatedAtUtc = NormalizeTimestamp(updatedAtUtc);
         Version++;
         return true;
+    }
+
+    public void Approve(
+        bool hasAcceptanceCriteria,
+        bool hasImplementationTasks,
+        bool allAcceptanceCriteriaCovered,
+        DateTimeOffset approvedAtUtc)
+    {
+        EnsureTransition(SpecificationStatus.Draft, SpecificationStatus.Approved);
+
+        if (!hasAcceptanceCriteria ||
+            !hasImplementationTasks ||
+            !allAcceptanceCriteriaCovered)
+        {
+            throw new SpecificationReadinessException();
+        }
+
+        var normalizedTimestamp = NormalizeTimestamp(approvedAtUtc);
+        Status = SpecificationStatus.Approved;
+        ApprovedAtUtc = normalizedTimestamp;
+        UpdatedAtUtc = normalizedTimestamp;
+        Version++;
+    }
+
+    public void MarkImplemented(
+        bool allImplementationTasksCompleted,
+        bool allAcceptanceCriteriaCovered,
+        DateTimeOffset implementedAtUtc)
+    {
+        EnsureTransition(SpecificationStatus.Approved, SpecificationStatus.Implemented);
+
+        if (!allImplementationTasksCompleted || !allAcceptanceCriteriaCovered)
+        {
+            throw new SpecificationImplementationIncompleteException();
+        }
+
+        var normalizedTimestamp = NormalizeTimestamp(implementedAtUtc);
+        Status = SpecificationStatus.Implemented;
+        ImplementedAtUtc = normalizedTimestamp;
+        UpdatedAtUtc = normalizedTimestamp;
+        Version++;
+    }
+
+    public void Verify(DateTimeOffset verifiedAtUtc)
+    {
+        EnsureTransition(SpecificationStatus.Implemented, SpecificationStatus.Verified);
+
+        var normalizedTimestamp = NormalizeTimestamp(verifiedAtUtc);
+        Status = SpecificationStatus.Verified;
+        VerifiedAtUtc = normalizedTimestamp;
+        UpdatedAtUtc = normalizedTimestamp;
+        Version++;
+    }
+
+    public void EnsureEditable()
+    {
+        if (Status != SpecificationStatus.Draft)
+        {
+            throw new SpecificationStateException(Status, "edited");
+        }
+    }
+
+    public void EnsureApprovedForImplementation()
+    {
+        if (Status != SpecificationStatus.Approved)
+        {
+            throw new SpecificationStateException(Status, "implemented");
+        }
     }
 
     public static Dictionary<string, string[]> ValidateContent(string? content)
@@ -102,6 +180,16 @@ public sealed class Specification
         }
 
         return errors;
+    }
+
+    private void EnsureTransition(
+        SpecificationStatus requiredStatus,
+        SpecificationStatus targetStatus)
+    {
+        if (Status != requiredStatus)
+        {
+            throw new SpecificationTransitionException(Status, targetStatus);
+        }
     }
 
     private static DateTimeOffset NormalizeTimestamp(DateTimeOffset timestamp) =>

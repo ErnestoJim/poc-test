@@ -11,7 +11,7 @@ public sealed class HttpConcurrencyMigrationTests
         "20261007143557_AddImplementationTaskLifecycle";
 
     [Fact]
-    public async Task Migration_AddsZeroVersionToExistingSpecification()
+    public async Task Migrations_AddVersionAndLifecycleAdvancesExistingSpecification()
     {
         var temporaryDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -71,7 +71,7 @@ public sealed class HttpConcurrencyMigrationTests
             var specification = await dbContext.Specifications
                 .AsNoTracking()
                 .SingleAsync(item => item.Id == specificationId);
-            Assert.Equal(0, specification.Version);
+            Assert.Equal(1, specification.Version);
         }
         finally
         {

@@ -141,7 +141,7 @@ public sealed class SpecificationHttpConcurrencyTests
     }
 
     [Fact]
-    public async Task CollectionChanges_DoNotInvalidateSpecificationEntityTag()
+    public async Task CollectionChanges_InvalidateSpecificationEntityTag()
     {
         using var factory = new SpecFlowApiFactory();
         using var client = factory.CreateClient();
@@ -165,7 +165,7 @@ public sealed class SpecificationHttpConcurrencyTests
         var currentEntityTag = await HttpPreconditionTestData.GetEntityTagAsync(
             client,
             specificationRoute);
-        Assert.Equal(originalEntityTag, currentEntityTag);
+        Assert.NotEqual(originalEntityTag, currentEntityTag);
     }
 
     private static string Route(Guid projectId, Guid proposalId) =>

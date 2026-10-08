@@ -216,6 +216,9 @@ namespace SpecFlow.Infrastructure.Persistence.Migrations
                     b.Property<int>("AcceptanceCriteriaVersion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("ApprovedAtUtc")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasMaxLength(100000)
@@ -230,7 +233,20 @@ namespace SpecFlow.Infrastructure.Persistence.Migrations
                     b.Property<int>("ImplementationTasksVersion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("ImplementedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Draft");
+
                     b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("VerifiedAtUtc")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Version")

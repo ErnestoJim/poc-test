@@ -125,6 +125,12 @@ public static class ImplementationTaskEndpoints
         }
 
         var specification = context.Specification!;
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
+        }
+
         var normalizedTitle = ImplementationTask.NormalizeTitle(request.Title!);
         var duplicateExists = await dbContext.ImplementationTasks
             .AnyAsync(
@@ -159,6 +165,7 @@ public static class ImplementationTaskEndpoints
         {
             if (!await TryAdvanceCollectionVersionAsync(
                     specification,
+                    advanceAggregateVersion: true,
                     dbContext,
                     cancellationToken))
             {
@@ -324,7 +331,8 @@ public static class ImplementationTaskEndpoints
             return context.Error;
         }
 
-        var specificationId = context.Specification!.Id;
+        var specification = context.Specification!;
+        var specificationId = specification.Id;
         var implementationTask = await dbContext.ImplementationTasks
             .SingleOrDefaultAsync(
                 existingTask =>
@@ -343,6 +351,12 @@ public static class ImplementationTaskEndpoints
         if (preconditionError is not null)
         {
             return preconditionError;
+        }
+
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
         }
 
         var normalizedTitle = ImplementationTask.NormalizeTitle(request.Title!);
@@ -372,17 +386,33 @@ public static class ImplementationTaskEndpoints
                 Results.Ok(ImplementationTaskResponse.FromDomain(implementationTask)));
         }
 
+        await using var transaction = await dbContext.Database
+            .BeginTransactionAsync(cancellationToken);
+
         try
         {
+            if (!await SpecificationLifecycle.TryAdvanceAggregateVersionAsync(
+                    specification,
+                    SpecificationStatus.Draft,
+                    dbContext,
+                    cancellationToken))
+            {
+                await RollbackAsync(transaction, cancellationToken);
+                return EndpointProblems.PreconditionFailed();
+            }
+
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
+            await RollbackAsync(transaction, cancellationToken);
             return EndpointProblems.PreconditionFailed();
         }
         catch (DbUpdateException exception) when (
             PersistenceExceptionClassifier.IsUniqueConstraintViolation(exception))
         {
+            await RollbackAsync(transaction, cancellationToken);
             return ImplementationTaskAlreadyExistsProblem();
         }
 
@@ -444,6 +474,12 @@ public static class ImplementationTaskEndpoints
             return preconditionError;
         }
 
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
+        }
+
         if (implementationTasks.Count != requestedIds.Count ||
             !implementationTasks
                 .Select(implementationTask => implementationTask.Id)
@@ -466,6 +502,7 @@ public static class ImplementationTaskEndpoints
         {
             if (!await TryAdvanceCollectionVersionAsync(
                     specification,
+                    movedTasks.Count > 0,
                     dbContext,
                     cancellationToken))
             {
@@ -599,17 +636,41 @@ public static class ImplementationTaskEndpoints
             return preconditionError;
         }
 
+        var specification = context.Specification!;
+        var approvedError = SpecificationLifecycle
+            .EnsureApprovedForImplementation(specification);
+        if (approvedError is not null)
+        {
+            return approvedError;
+        }
+
+        await using var transaction = await dbContext.Database
+            .BeginTransactionAsync(cancellationToken);
+
         try
         {
             transition(implementationTask, timeProvider.GetUtcNow());
+            if (!await SpecificationLifecycle.TryAdvanceAggregateVersionAsync(
+                    specification,
+                    SpecificationStatus.Approved,
+                    dbContext,
+                    cancellationToken))
+            {
+                await RollbackAsync(transaction, cancellationToken);
+                return EndpointProblems.PreconditionFailed();
+            }
+
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (ImplementationTaskTransitionException)
         {
+            await RollbackAsync(transaction, cancellationToken);
             return ImplementationTaskTransitionConflictProblem(identifiers.TaskId);
         }
         catch (DbUpdateConcurrencyException)
         {
+            await RollbackAsync(transaction, cancellationToken);
             return EndpointProblems.PreconditionFailed();
         }
 
@@ -667,6 +728,12 @@ public static class ImplementationTaskEndpoints
             return preconditionError;
         }
 
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
+        }
+
         var shiftedTasks = await dbContext.ImplementationTasks
             .Where(existingTask =>
                 existingTask.SpecificationId == specification.Id &&
@@ -685,6 +752,7 @@ public static class ImplementationTaskEndpoints
         {
             if (!await TryAdvanceCollectionVersionAsync(
                     specification,
+                    advanceAggregateVersion: true,
                     dbContext,
                     cancellationToken))
             {
@@ -846,26 +914,47 @@ public static class ImplementationTaskEndpoints
                     implementationTask.NormalizedTitle == normalizedTitle,
                 cancellationToken);
 
-        return duplicateExists
-            ? ImplementationTaskAlreadyExistsProblem()
-            : ImplementationTasksCollectionChangedProblem();
+        if (duplicateExists)
+        {
+            return ImplementationTaskAlreadyExistsProblem();
+        }
+
+        var status = await dbContext.Specifications
+            .AsNoTracking()
+            .Where(specification => specification.Id == specificationId)
+            .Select(specification => specification.Status)
+            .SingleAsync(cancellationToken);
+
+        return status == SpecificationStatus.Draft
+            ? ImplementationTasksCollectionChangedProblem()
+            : EndpointProblems.SpecificationNotEditable();
     }
 
     private static async Task<bool> TryAdvanceCollectionVersionAsync(
         Specification specification,
+        bool advanceAggregateVersion,
         SpecFlowDbContext dbContext,
         CancellationToken cancellationToken)
     {
         var affectedRows = await dbContext.Specifications
             .Where(existingSpecification =>
                 existingSpecification.Id == specification.Id &&
+                existingSpecification.Version == specification.Version &&
+                existingSpecification.Status == SpecificationStatus.Draft &&
                 existingSpecification.ImplementationTasksVersion ==
                 specification.ImplementationTasksVersion)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(
-                    existingSpecification => existingSpecification.ImplementationTasksVersion,
-                    existingSpecification =>
-                        existingSpecification.ImplementationTasksVersion + 1),
+                setters => setters
+                    .SetProperty(
+                        existingSpecification =>
+                            existingSpecification.ImplementationTasksVersion,
+                        existingSpecification =>
+                            existingSpecification.ImplementationTasksVersion + 1)
+                    .SetProperty(
+                        existingSpecification => existingSpecification.Version,
+                        existingSpecification => advanceAggregateVersion
+                            ? existingSpecification.Version + 1
+                            : existingSpecification.Version),
                 cancellationToken);
 
         return affectedRows == 1;

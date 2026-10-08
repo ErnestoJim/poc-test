@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SpecFlow.Api.Contracts.Traceability;
 using SpecFlow.Domain.ImplementationTasks;
+using SpecFlow.Domain.Specifications;
 using SpecFlow.Domain.Traceability;
 using SpecFlow.Infrastructure.Persistence;
 
@@ -32,6 +33,7 @@ public static class TraceabilityEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
@@ -71,11 +73,13 @@ public static class TraceabilityEndpoints
             return context.Error;
         }
 
+        var specification = context.Specification!;
+
         var implementationTask = await dbContext.ImplementationTasks
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 task =>
-                    task.SpecificationId == context.SpecificationId &&
+                    task.SpecificationId == specification.Id &&
                     task.Id == identifiers.TaskId,
                 cancellationToken);
         if (implementationTask is null)
@@ -126,11 +130,13 @@ public static class TraceabilityEndpoints
             return context.Error;
         }
 
+        var specification = context.Specification!;
+
         var implementationTask = await dbContext.ImplementationTasks
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 task =>
-                    task.SpecificationId == context.SpecificationId &&
+                    task.SpecificationId == specification.Id &&
                     task.Id == identifiers.TaskId,
                 cancellationToken);
         if (implementationTask is null)
@@ -143,7 +149,7 @@ public static class TraceabilityEndpoints
             .AsNoTracking()
             .CountAsync(
                 criterion =>
-                    criterion.SpecificationId == context.SpecificationId &&
+                    criterion.SpecificationId == specification.Id &&
                     requestedIds.Contains(criterion.Id),
                 cancellationToken);
         if (matchingCriteriaCount != requestedIds.Count)
@@ -166,6 +172,12 @@ public static class TraceabilityEndpoints
             return preconditionError;
         }
 
+        var editableError = SpecificationLifecycle.EnsureEditable(specification);
+        if (editableError is not null)
+        {
+            return editableError;
+        }
+
         if (currentIds.Count == requestedIds.Count &&
             currentIds.ToHashSet().SetEquals(requestedIds))
         {
@@ -180,6 +192,16 @@ public static class TraceabilityEndpoints
 
         try
         {
+            if (!await SpecificationLifecycle.TryAdvanceAggregateVersionAsync(
+                    specification,
+                    SpecificationStatus.Draft,
+                    dbContext,
+                    cancellationToken))
+            {
+                await RollbackAsync(transaction, cancellationToken);
+                return EndpointProblems.PreconditionFailed();
+            }
+
             if (!await TryAdvanceCollectionVersionAsync(
                     implementationTask,
                     dbContext,
@@ -242,7 +264,7 @@ public static class TraceabilityEndpoints
             .AsNoTracking()
             .AnyAsync(
                 criterion =>
-                    criterion.SpecificationId == context.SpecificationId &&
+                    criterion.SpecificationId == context.Specification!.Id &&
                     criterion.Id == identifiers.CriterionId,
                 cancellationToken);
         if (!criterionExists)
@@ -255,7 +277,7 @@ public static class TraceabilityEndpoints
                 join task in dbContext.ImplementationTasks.AsNoTracking()
                     on link.ImplementationTaskId equals task.Id
                 where link.AcceptanceCriterionId == identifiers.CriterionId &&
-                    task.SpecificationId == context.SpecificationId
+                    task.SpecificationId == context.Specification!.Id
                 select task.Id)
             .ToListAsync(cancellationToken);
         taskIds.Sort();
@@ -277,7 +299,7 @@ public static class TraceabilityEndpoints
         return criterionIds;
     }
 
-    private static async Task<(Guid SpecificationId, IResult? Error)>
+    private static async Task<(Specification? Specification, IResult? Error)>
         FindSpecificationAsync(
             Guid projectId,
             Guid proposalId,
@@ -292,8 +314,8 @@ public static class TraceabilityEndpoints
             cancellationToken);
 
         return context.Error is not null
-            ? (Guid.Empty, context.Error)
-            : (context.Specification!.Id, null);
+            ? (null, context.Error)
+            : (context.Specification, null);
     }
 
     private static (

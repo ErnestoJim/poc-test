@@ -8,6 +8,9 @@ internal sealed class HttpConcurrencyOpenApiTransformer : IOpenApiOperationTrans
     private static readonly HashSet<string> ConditionalOperations =
     [
         "UpdateSpecification",
+        "ApproveSpecification",
+        "MarkSpecificationImplemented",
+        "VerifySpecification",
         "UpdateAcceptanceCriterion",
         "DeleteAcceptanceCriterion",
         "ReorderAcceptanceCriteria",
@@ -29,6 +32,9 @@ internal sealed class HttpConcurrencyOpenApiTransformer : IOpenApiOperationTrans
         "CreateSpecification",
         "GetSpecification",
         "UpdateSpecification",
+        "ApproveSpecification",
+        "MarkSpecificationImplemented",
+        "VerifySpecification",
         "CreateAcceptanceCriterion",
         "GetAcceptanceCriterion",
         "ListAcceptanceCriteria",

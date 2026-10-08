@@ -21,6 +21,9 @@ public sealed class OpenApiTests
         (string Path, string Method)[] conditionalOperations =
         [
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "put"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/approve", "post"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented", "post"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/verify", "post"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order", "put"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "put"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}", "delete"),
@@ -56,6 +59,9 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "post", "201"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "get", "200"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "put", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/approve", "post", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented", "post", "200"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/verify", "post", "200"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "post", "201"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "get", "200"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order", "put", "204"),
@@ -115,6 +121,9 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "post", "CreateSpecification"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "get", "GetSpecification"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "put", "UpdateSpecification"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/approve", "post", "ApproveSpecification"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented", "post", "MarkSpecificationImplemented"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/verify", "post", "VerifySpecification"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "post", "CreateAcceptanceCriterion"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria", "get", "ListAcceptanceCriteria"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order", "put", "ReorderAcceptanceCriteria"),
@@ -194,6 +203,18 @@ public sealed class OpenApiTests
         Assert.True(specificationPath.TryGetProperty("post", out _));
         Assert.True(specificationPath.TryGetProperty("get", out _));
         Assert.True(specificationPath.TryGetProperty("put", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/approve")
+                .TryGetProperty("post", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented")
+                .TryGetProperty("post", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/proposals/{proposalId}/specification/verify")
+                .TryGetProperty("post", out _));
 
         var responseProperties = document.RootElement
             .GetProperty("components")
@@ -212,6 +233,10 @@ public sealed class OpenApiTests
         Assert.True(specificationProperties.TryGetProperty("id", out _));
         Assert.True(specificationProperties.TryGetProperty("featureProposalId", out _));
         Assert.True(specificationProperties.TryGetProperty("content", out _));
+        Assert.True(specificationProperties.TryGetProperty("status", out _));
+        Assert.True(specificationProperties.TryGetProperty("approvedAtUtc", out _));
+        Assert.True(specificationProperties.TryGetProperty("implementedAtUtc", out _));
+        Assert.True(specificationProperties.TryGetProperty("verifiedAtUtc", out _));
         Assert.True(specificationProperties.TryGetProperty("createdAtUtc", out _));
         Assert.True(specificationProperties.TryGetProperty("updatedAtUtc", out _));
 

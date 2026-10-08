@@ -8,6 +8,7 @@ using SpecFlow.Api.Contracts.Traceability;
 using SpecFlow.Api.IntegrationTests.AcceptanceCriteria;
 using SpecFlow.Api.IntegrationTests.ImplementationTasks;
 using SpecFlow.Api.IntegrationTests.Infrastructure;
+using SpecFlow.Api.IntegrationTests.Specifications;
 
 namespace SpecFlow.Api.IntegrationTests.Traceability;
 
@@ -295,11 +296,25 @@ public sealed class TraceabilityTests
     }
 
     [Fact]
-    public async Task Replace_CompletedTask_DoesNotChangeResourcesOrIndividualEntityTags()
+    public async Task ReplaceLinks_AfterApproval_ReturnsConflictWithoutChangingResources()
     {
         using var factory = new SpecFlowApiFactory();
         using var client = factory.CreateClient();
         var context = await TraceabilityTestData.CreateContextAsync(client);
+        var route = TaskLinksRoute(
+            context.Project.Id,
+            context.Proposal.Id,
+            context.Task.Id);
+        using var initialLinksResponse = await TraceabilityTestData.ReplaceLinksAsync(
+            client,
+            route,
+            await HttpPreconditionTestData.GetEntityTagAsync(client, route),
+            context.Criterion.Id);
+        initialLinksResponse.EnsureSuccessStatusCode();
+        await SpecificationTestData.ApproveAsync(
+            client,
+            context.Project.Id,
+            context.Proposal.Id);
         await ImplementationTaskTestData.StartTaskAsync(
             client,
             context.Project.Id,
@@ -316,18 +331,15 @@ public sealed class TraceabilityTests
         var criterionEntityTag = await HttpPreconditionTestData.GetEntityTagAsync(
             client,
             criterionRoute);
-        var route = TaskLinksRoute(
-            context.Project.Id,
-            context.Proposal.Id,
-            context.Task.Id);
-
         using var response = await TraceabilityTestData.ReplaceLinksAsync(
             client,
             route,
             await HttpPreconditionTestData.GetEntityTagAsync(client, route),
             context.Criterion.Id);
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal("Specification is not editable", problem?.Title);
         Assert.Equal(taskEntityTag, await HttpPreconditionTestData.GetEntityTagAsync(
             client,
             taskRoute));

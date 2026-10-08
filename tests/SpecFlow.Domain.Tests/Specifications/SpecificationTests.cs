@@ -29,6 +29,10 @@ public sealed class SpecificationTests
         Assert.Equal(content, specification.Content);
         Assert.Equal(CreatedAtUtc, specification.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, specification.UpdatedAtUtc);
+        Assert.Equal(SpecificationStatus.Draft, specification.Status);
+        Assert.Null(specification.ApprovedAtUtc);
+        Assert.Null(specification.ImplementedAtUtc);
+        Assert.Null(specification.VerifiedAtUtc);
         Assert.Equal(0, specification.Version);
     }
 
@@ -114,10 +118,169 @@ public sealed class SpecificationTests
         Assert.Equal(0, specification.Version);
     }
 
+    [Fact]
+    public void Approve_WhenPlanIsReady_TransitionsAndNormalizesTimestamp()
+    {
+        var specification = CreateSpecification();
+        var timestamp = CreatedAtUtc.AddHours(1).AddTicks(1_234);
+
+        specification.Approve(
+            hasAcceptanceCriteria: true,
+            hasImplementationTasks: true,
+            allAcceptanceCriteriaCovered: true,
+            timestamp);
+
+        Assert.Equal(SpecificationStatus.Approved, specification.Status);
+        Assert.Equal(CreatedAtUtc.AddHours(1), specification.ApprovedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(1), specification.UpdatedAtUtc);
+        Assert.Null(specification.ImplementedAtUtc);
+        Assert.Null(specification.VerifiedAtUtc);
+        Assert.Equal(1, specification.Version);
+    }
+
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public void Approve_WhenPlanIsNotReady_ThrowsAndPreservesDraft(
+        bool hasAcceptanceCriteria,
+        bool hasImplementationTasks,
+        bool allAcceptanceCriteriaCovered)
+    {
+        var specification = CreateSpecification();
+
+        Assert.Throws<SpecificationReadinessException>(
+            () => specification.Approve(
+                hasAcceptanceCriteria,
+                hasImplementationTasks,
+                allAcceptanceCriteriaCovered,
+                CreatedAtUtc.AddHours(1)));
+
+        Assert.Equal(SpecificationStatus.Draft, specification.Status);
+        Assert.Null(specification.ApprovedAtUtc);
+        Assert.Equal(CreatedAtUtc, specification.UpdatedAtUtc);
+        Assert.Equal(0, specification.Version);
+    }
+
+    [Fact]
+    public void UpdateContent_AfterApproval_ThrowsAndPreservesContent()
+    {
+        var specification = CreateApprovedSpecification();
+
+        var exception = Assert.Throws<SpecificationStateException>(
+            () => specification.UpdateContent("# Changed", CreatedAtUtc.AddHours(2)));
+
+        Assert.Equal(SpecificationStatus.Approved, exception.CurrentStatus);
+        Assert.Equal("# Specification", specification.Content);
+        Assert.Equal(1, specification.Version);
+    }
+
+    [Fact]
+    public void MarkImplemented_WhenAllWorkIsComplete_TransitionsAndPreservesApproval()
+    {
+        var specification = CreateApprovedSpecification();
+
+        specification.MarkImplemented(
+            allImplementationTasksCompleted: true,
+            allAcceptanceCriteriaCovered: true,
+            CreatedAtUtc.AddHours(2).AddTicks(1_234));
+
+        Assert.Equal(SpecificationStatus.Implemented, specification.Status);
+        Assert.Equal(CreatedAtUtc.AddHours(1), specification.ApprovedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(2), specification.ImplementedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(2), specification.UpdatedAtUtc);
+        Assert.Null(specification.VerifiedAtUtc);
+        Assert.Equal(2, specification.Version);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void MarkImplemented_WhenWorkIsIncomplete_ThrowsAndPreservesApproval(
+        bool allImplementationTasksCompleted,
+        bool allAcceptanceCriteriaCovered)
+    {
+        var specification = CreateApprovedSpecification();
+
+        Assert.Throws<SpecificationImplementationIncompleteException>(
+            () => specification.MarkImplemented(
+                allImplementationTasksCompleted,
+                allAcceptanceCriteriaCovered,
+                CreatedAtUtc.AddHours(2)));
+
+        Assert.Equal(SpecificationStatus.Approved, specification.Status);
+        Assert.Null(specification.ImplementedAtUtc);
+        Assert.Equal(1, specification.Version);
+    }
+
+    [Fact]
+    public void Verify_AfterImplementation_TransitionsAndPreservesEarlierDates()
+    {
+        var specification = CreateImplementedSpecification();
+
+        specification.Verify(CreatedAtUtc.AddHours(3).AddTicks(1_234));
+
+        Assert.Equal(SpecificationStatus.Verified, specification.Status);
+        Assert.Equal(CreatedAtUtc.AddHours(1), specification.ApprovedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(2), specification.ImplementedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(3), specification.VerifiedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(3), specification.UpdatedAtUtc);
+        Assert.Equal(3, specification.Version);
+    }
+
+    [Fact]
+    public void Verify_BeforeImplementation_ThrowsAndPreservesStatus()
+    {
+        var specification = CreateApprovedSpecification();
+
+        var exception = Assert.Throws<SpecificationTransitionException>(
+            () => specification.Verify(CreatedAtUtc.AddHours(2)));
+
+        Assert.Equal(SpecificationStatus.Approved, exception.CurrentStatus);
+        Assert.Equal(SpecificationStatus.Verified, exception.TargetStatus);
+        Assert.Null(specification.VerifiedAtUtc);
+        Assert.Equal(1, specification.Version);
+    }
+
+    [Fact]
+    public void EnsureApprovedForImplementation_OnlyAllowsApproved()
+    {
+        var draft = CreateSpecification();
+        var approved = CreateApprovedSpecification();
+        var implemented = CreateImplementedSpecification();
+
+        Assert.Throws<SpecificationStateException>(
+            draft.EnsureApprovedForImplementation);
+        approved.EnsureApprovedForImplementation();
+        Assert.Throws<SpecificationStateException>(
+            implemented.EnsureApprovedForImplementation);
+    }
+
     private static Specification CreateSpecification() =>
         Specification.Create(
             Guid.NewGuid(),
             Guid.NewGuid(),
             "# Specification",
             CreatedAtUtc);
+
+    private static Specification CreateApprovedSpecification()
+    {
+        var specification = CreateSpecification();
+        specification.Approve(
+            hasAcceptanceCriteria: true,
+            hasImplementationTasks: true,
+            allAcceptanceCriteriaCovered: true,
+            CreatedAtUtc.AddHours(1));
+        return specification;
+    }
+
+    private static Specification CreateImplementedSpecification()
+    {
+        var specification = CreateApprovedSpecification();
+        specification.MarkImplemented(
+            allImplementationTasksCompleted: true,
+            allAcceptanceCriteriaCovered: true,
+            CreatedAtUtc.AddHours(2));
+        return specification;
+    }
 }
