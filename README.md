@@ -5,9 +5,10 @@ spec-driven development, skills y MCP.
 
 La aplicación proporciona una API para gestionar proyectos, propuestas de
 funcionalidades, especificaciones en Markdown, criterios de aceptación y tareas
-de implementación. Las propuestas y las tareas cuentan con ciclos de vida
-explícitos, y los recursos editables utilizan concurrencia optimista mediante
-ETags e `If-Match`.
+de implementación. También mantiene un registro de decisiones técnicas por
+proyecto. Las propuestas y las tareas cuentan con ciclos de vida explícitos, y
+los recursos editables utilizan concurrencia optimista mediante ETags e
+`If-Match`.
 
 Las especificaciones que definen el comportamiento implementado están en:
 
@@ -20,6 +21,7 @@ Las especificaciones que definen el comportamiento implementado están en:
 - [`specs/0007-implementation-task-lifecycle/spec.md`](specs/0007-implementation-task-lifecycle/spec.md)
 - [`specs/0008-api-maintainability-checkpoint/spec.md`](specs/0008-api-maintainability-checkpoint/spec.md)
 - [`specs/0009-http-concurrency/spec.md`](specs/0009-http-concurrency/spec.md)
+- [`specs/0010-technical-decisions/spec.md`](specs/0010-technical-decisions/spec.md)
 
 ## Requisitos
 
@@ -77,6 +79,10 @@ Endpoints:
 - `DELETE /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete`
+- `POST /api/projects/{projectId}/technical-decisions`
+- `GET /api/projects/{projectId}/technical-decisions`
+- `GET /api/projects/{projectId}/technical-decisions/{decisionId}`
+- `PUT /api/projects/{projectId}/technical-decisions/{decisionId}`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -171,13 +177,30 @@ Las tareas comienzan en estado `pending`, pasan a `in_progress` al iniciarse y
 terminan en `completed`. Una tarea completada no puede reabrirse, aunque puede
 seguir editándose, reordenándose o eliminándose.
 
+Cada proyecto también puede mantener un registro cronológico de decisiones
+técnicas. Cada decisión contiene un título y un documento Markdown flexible; los
+títulos pueden repetirse y la edición requiere el ETag vigente:
+
+```bash
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/technical-decisions \
+  --header 'Content-Type: application/json' \
+  --data '{"title":"Persist with SQLite","content":"# Decision\n\nUse SQLite through EF Core."}'
+
+curl --request PUT \
+  http://localhost:5194/api/projects/{projectId}/technical-decisions/{decisionId} \
+  --header 'Content-Type: application/json' \
+  --header 'If-Match: {decisionEtag}' \
+  --data '{"title":"Persist with SQLite","content":"# Updated decision\n\nKeep SQLite for the POC."}'
+```
+
 ## Concurrencia optimista
 
-Las respuestas de especificaciones, criterios y tareas incluyen un header
-`ETag`. Los listados de criterios y tareas también incluyen un ETag propio de
-la colección. Antes de editar, eliminar, transicionar o reordenar, el consumidor
-debe leer el recurso correspondiente y enviar ese valor sin interpretarlo en
-`If-Match`.
+Las respuestas de especificaciones, criterios, tareas y decisiones técnicas
+incluyen un header `ETag`. Los listados de criterios y tareas también incluyen
+un ETag propio de la colección. Antes de editar, eliminar, transicionar o
+reordenar, el consumidor debe leer el recurso correspondiente y enviar ese
+valor sin interpretarlo en `If-Match`.
 
 ```bash
 curl --include \

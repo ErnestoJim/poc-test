@@ -28,7 +28,8 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "put"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "delete"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start", "post"),
-            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post")
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put")
         ];
 
         foreach (var operationReference in conditionalOperations)
@@ -61,7 +62,10 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "get", "200"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "put", "200"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start", "post", "200"),
-            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post", "200")
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post", "200"),
+            ("/api/projects/{projectId}/technical-decisions", "post", "201"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "get", "200"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put", "200")
         ];
 
         foreach (var responseReference in entityTagResponses)
@@ -114,7 +118,11 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "put", "UpdateImplementationTask"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "delete", "DeleteImplementationTask"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start", "post", "StartImplementationTask"),
-            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post", "CompleteImplementationTask")
+            ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post", "CompleteImplementationTask"),
+            ("/api/projects/{projectId}/technical-decisions", "post", "CreateTechnicalDecision"),
+            ("/api/projects/{projectId}/technical-decisions", "get", "ListTechnicalDecisions"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "get", "GetTechnicalDecision"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put", "UpdateTechnicalDecision")
         ];
 
         Assert.Equal(
@@ -257,5 +265,28 @@ public sealed class OpenApiTests
         Assert.True(implementationTaskProperties.TryGetProperty("updatedAtUtc", out _));
         Assert.False(implementationTaskProperties.TryGetProperty("normalizedTitle", out _));
         Assert.False(implementationTaskProperties.TryGetProperty("version", out _));
+
+        var technicalDecisionsPath = paths.GetProperty(
+            "/api/projects/{projectId}/technical-decisions");
+        Assert.True(technicalDecisionsPath.TryGetProperty("post", out _));
+        Assert.True(technicalDecisionsPath.TryGetProperty("get", out _));
+        var technicalDecisionPath = paths.GetProperty(
+            "/api/projects/{projectId}/technical-decisions/{decisionId}");
+        Assert.True(technicalDecisionPath.TryGetProperty("get", out _));
+        Assert.True(technicalDecisionPath.TryGetProperty("put", out _));
+        Assert.False(technicalDecisionPath.TryGetProperty("delete", out _));
+
+        var technicalDecisionProperties = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("TechnicalDecisionResponse")
+            .GetProperty("properties");
+        Assert.True(technicalDecisionProperties.TryGetProperty("id", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("projectId", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("title", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("content", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("createdAtUtc", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("updatedAtUtc", out _));
+        Assert.False(technicalDecisionProperties.TryGetProperty("version", out _));
     }
 }

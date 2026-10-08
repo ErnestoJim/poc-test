@@ -4,6 +4,7 @@ using SpecFlow.Domain.FeatureProposals;
 using SpecFlow.Domain.ImplementationTasks;
 using SpecFlow.Domain.Projects;
 using SpecFlow.Domain.Specifications;
+using SpecFlow.Domain.TechnicalDecisions;
 
 namespace SpecFlow.Infrastructure.Persistence;
 
@@ -19,6 +20,8 @@ public sealed class SpecFlowDbContext(DbContextOptions<SpecFlowDbContext> option
     public DbSet<Project> Projects => Set<Project>();
 
     public DbSet<Specification> Specifications => Set<Specification>();
+
+    public DbSet<TechnicalDecision> TechnicalDecisions => Set<TechnicalDecision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

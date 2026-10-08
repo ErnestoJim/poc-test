@@ -2,9 +2,16 @@
 
 ## Estado
 
-Borrador revisado el 8 de octubre de 2026. Las decisiones de diseño de este
-documento han sido acordadas, pero la especificación todavía no está aprobada
-para implementación.
+Implementada y verificada el 8 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
+
+Verificación final:
+
+- compilación sin warnings ni errores;
+- 90 pruebas de dominio superadas;
+- 241 pruebas de integración superadas;
+- formato verificado sin cambios;
+- modelo de EF Core sin migraciones pendientes.
 
 ## Problema
 
@@ -373,7 +380,7 @@ Application.
 - Estados, aprobación, rechazo y supersesión quedan para una especificación
   posterior.
 
-## Plan de implementación propuesto
+## Plan de implementación
 
 1. Implementar `TechnicalDecision` y sus pruebas unitarias.
 2. Añadir el `DbSet`, la configuración de EF Core y generar la migración

@@ -25,6 +25,7 @@ app.MapFeatureProposalEndpoints();
 app.MapSpecificationEndpoints();
 app.MapAcceptanceCriterionEndpoints();
 app.MapImplementationTaskEndpoints();
+app.MapTechnicalDecisionEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

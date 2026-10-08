@@ -25,6 +25,12 @@ internal static class RouteIdentifierParser
             "taskId",
             "The implementation task identifier must be a valid UUID.");
 
+    public static (Guid Identifier, IResult? Error) ParseTechnicalDecision(string value) =>
+        Parse(
+            value,
+            "decisionId",
+            "The technical decision identifier must be a valid UUID.");
+
     private static (Guid Identifier, IResult? Error) Parse(
         string value,
         string field,

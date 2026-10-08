@@ -27,6 +27,12 @@ internal static class EndpointProblems
             title: "Specification not found",
             detail: $"Feature proposal '{proposalId}' does not have a specification.");
 
+    public static IResult TechnicalDecisionNotFound(Guid decisionId) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Technical decision not found",
+            detail: $"No technical decision with identifier '{decisionId}' was found in this project.");
+
     public static IResult PreconditionRequired() =>
         Results.Problem(
             statusCode: StatusCodes.Status428PreconditionRequired,
