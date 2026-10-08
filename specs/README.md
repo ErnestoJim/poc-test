@@ -70,6 +70,7 @@ implementación.
 | [0008](0008-api-maintainability-checkpoint/spec.md) | Checkpoint de mantenibilidad | Implementada |
 | [0009](0009-http-concurrency/spec.md) | Concurrencia HTTP | Implementada |
 | [0010](0010-technical-decisions/spec.md) | Decisiones técnicas | Implementada |
+| [0011](0011-technical-decision-lifecycle/spec.md) | Ciclo de vida de decisiones | Aprobada |
 
 ## Crear la siguiente spec
 
