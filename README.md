@@ -86,6 +86,10 @@ Endpoints:
 - `GET /api/projects/{projectId}/technical-decisions`
 - `GET /api/projects/{projectId}/technical-decisions/{decisionId}`
 - `PUT /api/projects/{projectId}/technical-decisions/{decisionId}`
+- `DELETE /api/projects/{projectId}/technical-decisions/{decisionId}`
+- `POST /api/projects/{projectId}/technical-decisions/{decisionId}/accept`
+- `POST /api/projects/{projectId}/technical-decisions/{decisionId}/reject`
+- `POST /api/projects/{projectId}/technical-decisions/{decisionId}/supersede`
 - `GET /openapi/v1.json`
 
 Ejemplo:
@@ -182,7 +186,10 @@ seguir editándose, reordenándose o eliminándose.
 
 Cada proyecto también puede mantener un registro cronológico de decisiones
 técnicas. Cada decisión contiene un título y un documento Markdown flexible; los
-títulos pueden repetirse y la edición requiere el ETag vigente:
+títulos pueden repetirse. Las decisiones comienzan como `draft`, único estado en
+el que pueden editarse o eliminarse. Un borrador puede aceptarse o rechazarse y
+una decisión aceptada puede quedar supersedida por otra decisión aceptada
+posterior del mismo proyecto. Todas estas operaciones requieren el ETag vigente:
 
 ```bash
 curl --request POST \
@@ -195,6 +202,22 @@ curl --request PUT \
   --header 'Content-Type: application/json' \
   --header 'If-Match: {decisionEtag}' \
   --data '{"title":"Persist with SQLite","content":"# Updated decision\n\nKeep SQLite for the POC."}'
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/technical-decisions/{decisionId}/accept \
+  --header 'If-Match: {decisionEtag}'
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/technical-decisions/{decisionId}/reject \
+  --header 'Content-Type: application/json' \
+  --header 'If-Match: {decisionEtag}' \
+  --data '{"reason":"The operational cost is too high."}'
+
+curl --request POST \
+  http://localhost:5194/api/projects/{projectId}/technical-decisions/{decisionId}/supersede \
+  --header 'Content-Type: application/json' \
+  --header 'If-Match: {decisionEtag}' \
+  --data '{"replacementDecisionId":"{acceptedReplacementDecisionId}"}'
 ```
 
 ## Concurrencia optimista

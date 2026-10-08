@@ -31,6 +31,11 @@ public sealed class CreateTechnicalDecisionTests
         Assert.Equal(project.Id, decision.ProjectId);
         Assert.Equal("Use SQLite", decision.Title);
         Assert.Equal(Content, decision.Content);
+        Assert.Equal("draft", decision.Status);
+        Assert.Null(decision.DecidedAtUtc);
+        Assert.Null(decision.RejectionReason);
+        Assert.Null(decision.SupersededAtUtc);
+        Assert.Null(decision.SupersededByDecisionId);
         Assert.Equal(expectedTimestamp, decision.CreatedAtUtc);
         Assert.Equal(expectedTimestamp, decision.UpdatedAtUtc);
         Assert.Equal(

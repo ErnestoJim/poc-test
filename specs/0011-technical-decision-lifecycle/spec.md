@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aprobada para implementación el 8 de octubre de 2026.
+Implementada y verificada el 8 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
 
 ## Base documental
 
@@ -253,4 +254,8 @@ Nueva migración: `AddTechnicalDecisionLifecycle`.
 
 ## Evidencia de cierre
 
-Pendiente de implementación.
+- Compilación sin warnings ni errores.
+- 105 pruebas de dominio superadas.
+- 266 pruebas de integración superadas.
+- Formato verificado sin cambios.
+- Modelo de EF Core sin migraciones pendientes.

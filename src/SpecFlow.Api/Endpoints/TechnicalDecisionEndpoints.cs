@@ -39,9 +39,50 @@ public static class TechnicalDecisionEndpoints
             .Produces<TechnicalDecisionResponse>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+
+        group.MapPost("/{decisionId}/accept", AcceptTechnicalDecisionAsync)
+            .WithName("AcceptTechnicalDecision")
+            .Produces<TechnicalDecisionResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired);
+
+        group.MapPost("/{decisionId}/reject", RejectTechnicalDecisionAsync)
+            .WithName("RejectTechnicalDecision")
+            .Accepts<RejectTechnicalDecisionRequest>("application/json")
+            .Produces<TechnicalDecisionResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+
+        group.MapPost("/{decisionId}/supersede", SupersedeTechnicalDecisionAsync)
+            .WithName("SupersedeTechnicalDecision")
+            .Accepts<SupersedeTechnicalDecisionRequest>("application/json")
+            .Produces<TechnicalDecisionResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+
+        group.MapDelete("/{decisionId}", DeleteTechnicalDecisionAsync)
+            .WithName("DeleteTechnicalDecision")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired);
 
         return group;
     }
@@ -157,16 +198,9 @@ public static class TechnicalDecisionEndpoints
             .Where(decision => decision.ProjectId == projectIdentifier.Identifier)
             .OrderBy(decision => decision.CreatedAtUtc)
             .ThenBy(decision => decision.Id)
-            .Select(decision => new TechnicalDecisionResponse(
-                decision.Id,
-                decision.ProjectId,
-                decision.Title,
-                decision.Content,
-                decision.CreatedAtUtc,
-                decision.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        return Results.Ok(decisions);
+        return Results.Ok(decisions.Select(TechnicalDecisionResponse.FromDomain));
     }
 
     private static async Task<IResult> UpdateTechnicalDecisionAsync(
@@ -218,11 +252,14 @@ public static class TechnicalDecisionEndpoints
             return preconditionError;
         }
 
-        decision.Update(request.Title, request.Content, timeProvider.GetUtcNow());
-
         try
         {
+            decision.Update(request.Title, request.Content, timeProvider.GetUtcNow());
             await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (TechnicalDecisionStateException)
+        {
+            return TechnicalDecisionNotEditableProblem(decision.Id);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -233,6 +270,272 @@ public static class TechnicalDecisionEndpoints
             httpContext,
             decision,
             Results.Ok(TechnicalDecisionResponse.FromDomain(decision)));
+    }
+
+    private static Task<IResult> AcceptTechnicalDecisionAsync(
+        string projectId,
+        string decisionId,
+        SpecFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        HttpContext httpContext,
+        CancellationToken cancellationToken) =>
+        TransitionTechnicalDecisionAsync(
+            projectId,
+            decisionId,
+            dbContext,
+            timeProvider,
+            httpContext,
+            static (decision, timestamp) => decision.Accept(timestamp),
+            cancellationToken);
+
+    private static async Task<IResult> RejectTechnicalDecisionAsync(
+        string projectId,
+        string decisionId,
+        RejectTechnicalDecisionRequest request,
+        SpecFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var identifiers = ParseIdentifiers(projectId, decisionId);
+        if (identifiers.Error is not null)
+        {
+            return identifiers.Error;
+        }
+
+        var validationErrors = TechnicalDecision.ValidateRejectionReason(request.Reason);
+        if (validationErrors.Count > 0)
+        {
+            return Results.ValidationProblem(validationErrors);
+        }
+
+        return await TransitionTechnicalDecisionAsync(
+            projectId,
+            decisionId,
+            dbContext,
+            timeProvider,
+            httpContext,
+            (decision, timestamp) => decision.Reject(request.Reason, timestamp),
+            cancellationToken);
+    }
+
+    private static async Task<IResult> SupersedeTechnicalDecisionAsync(
+        string projectId,
+        string decisionId,
+        SupersedeTechnicalDecisionRequest request,
+        SpecFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var identifiers = ParseIdentifiers(projectId, decisionId);
+        if (identifiers.Error is not null)
+        {
+            return identifiers.Error;
+        }
+
+        if (request.ReplacementDecisionId == Guid.Empty)
+        {
+            return EndpointProblems.InvalidIdentifier(
+                "replacementDecisionId",
+                "The replacement technical decision identifier must be a non-empty UUID.");
+        }
+
+        if (!await ProjectExistsAsync(
+                identifiers.ProjectId,
+                dbContext,
+                cancellationToken))
+        {
+            return EndpointProblems.ProjectNotFound(identifiers.ProjectId);
+        }
+
+        var decision = await dbContext.TechnicalDecisions
+            .SingleOrDefaultAsync(
+                existingDecision =>
+                    existingDecision.ProjectId == identifiers.ProjectId &&
+                    existingDecision.Id == identifiers.DecisionId,
+                cancellationToken);
+
+        if (decision is null)
+        {
+            return EndpointProblems.TechnicalDecisionNotFound(identifiers.DecisionId);
+        }
+
+        var replacement = await dbContext.TechnicalDecisions
+            .SingleOrDefaultAsync(
+                existingDecision =>
+                    existingDecision.ProjectId == identifiers.ProjectId &&
+                    existingDecision.Id == request.ReplacementDecisionId,
+                cancellationToken);
+
+        if (replacement is null)
+        {
+            return EndpointProblems.ReplacementTechnicalDecisionNotFound(
+                request.ReplacementDecisionId);
+        }
+
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(decision));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
+        try
+        {
+            decision.SupersedeWith(replacement, timeProvider.GetUtcNow());
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (TechnicalDecisionTransitionException)
+        {
+            return TechnicalDecisionTransitionConflictProblem(decision.Id);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return EndpointProblems.PreconditionFailed();
+        }
+
+        return WithEntityTag(
+            httpContext,
+            decision,
+            Results.Ok(TechnicalDecisionResponse.FromDomain(decision)));
+    }
+
+    private static async Task<IResult> DeleteTechnicalDecisionAsync(
+        string projectId,
+        string decisionId,
+        SpecFlowDbContext dbContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var decisionResult = await FindTechnicalDecisionAsync(
+            projectId,
+            decisionId,
+            dbContext,
+            cancellationToken);
+        if (decisionResult.Error is not null)
+        {
+            return decisionResult.Error;
+        }
+
+        var decision = decisionResult.Decision!;
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(decision));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
+        try
+        {
+            decision.EnsureCanDelete();
+            dbContext.TechnicalDecisions.Remove(decision);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (TechnicalDecisionStateException)
+        {
+            return TechnicalDecisionCannotBeDeletedProblem(decision.Id);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return EndpointProblems.PreconditionFailed();
+        }
+
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> TransitionTechnicalDecisionAsync(
+        string projectId,
+        string decisionId,
+        SpecFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        HttpContext httpContext,
+        Action<TechnicalDecision, DateTimeOffset> transition,
+        CancellationToken cancellationToken)
+    {
+        var decisionResult = await FindTechnicalDecisionAsync(
+            projectId,
+            decisionId,
+            dbContext,
+            cancellationToken);
+        if (decisionResult.Error is not null)
+        {
+            return decisionResult.Error;
+        }
+
+        var decision = decisionResult.Decision!;
+        var preconditionError = HttpEntityTags.ValidateIfMatch(
+            httpContext,
+            CreateEntityTag(decision));
+        if (preconditionError is not null)
+        {
+            return preconditionError;
+        }
+
+        try
+        {
+            transition(decision, timeProvider.GetUtcNow());
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (TechnicalDecisionTransitionException)
+        {
+            return TechnicalDecisionTransitionConflictProblem(decision.Id);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return EndpointProblems.PreconditionFailed();
+        }
+
+        return WithEntityTag(
+            httpContext,
+            decision,
+            Results.Ok(TechnicalDecisionResponse.FromDomain(decision)));
+    }
+
+    private static async Task<(TechnicalDecision? Decision, IResult? Error)>
+        FindTechnicalDecisionAsync(
+            string projectId,
+            string decisionId,
+            SpecFlowDbContext dbContext,
+            CancellationToken cancellationToken)
+    {
+        var identifiers = ParseIdentifiers(projectId, decisionId);
+        if (identifiers.Error is not null)
+        {
+            return (null, identifiers.Error);
+        }
+
+        return await FindTechnicalDecisionAsync(
+            identifiers.ProjectId,
+            identifiers.DecisionId,
+            dbContext,
+            cancellationToken);
+    }
+
+    private static async Task<(TechnicalDecision? Decision, IResult? Error)>
+        FindTechnicalDecisionAsync(
+            Guid projectId,
+            Guid decisionId,
+            SpecFlowDbContext dbContext,
+            CancellationToken cancellationToken)
+    {
+        if (!await ProjectExistsAsync(projectId, dbContext, cancellationToken))
+        {
+            return (null, EndpointProblems.ProjectNotFound(projectId));
+        }
+
+        var decision = await dbContext.TechnicalDecisions
+            .SingleOrDefaultAsync(
+                existingDecision =>
+                    existingDecision.ProjectId == projectId &&
+                    existingDecision.Id == decisionId,
+                cancellationToken);
+
+        return decision is null
+            ? (null, EndpointProblems.TechnicalDecisionNotFound(decisionId))
+            : (decision, null);
     }
 
     private static (Guid ProjectId, Guid DecisionId, IResult? Error) ParseIdentifiers(
@@ -271,4 +574,22 @@ public static class TechnicalDecisionEndpoints
         TechnicalDecision decision,
         IResult result) =>
         HttpEntityTags.WithEntityTag(httpContext, CreateEntityTag(decision), result);
+
+    private static IResult TechnicalDecisionNotEditableProblem(Guid decisionId) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Technical decision is not editable",
+            detail: $"Technical decision '{decisionId}' is no longer a draft.");
+
+    private static IResult TechnicalDecisionTransitionConflictProblem(Guid decisionId) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Technical decision transition conflict",
+            detail: $"Technical decision '{decisionId}' cannot perform the requested transition.");
+
+    private static IResult TechnicalDecisionCannotBeDeletedProblem(Guid decisionId) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Technical decision cannot be deleted",
+            detail: $"Technical decision '{decisionId}' is no longer a draft.");
 }

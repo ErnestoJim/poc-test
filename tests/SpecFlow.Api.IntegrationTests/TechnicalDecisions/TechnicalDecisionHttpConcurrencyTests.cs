@@ -141,4 +141,92 @@ public sealed class TechnicalDecisionHttpConcurrencyTests
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
             () => secondDbContext.SaveChangesAsync());
     }
+
+    [Fact]
+    public async Task Accept_WithoutIfMatch_ReturnsPreconditionRequired()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var project = await TechnicalDecisionTestData.CreateProjectAsync(client);
+        var decision = await TechnicalDecisionTestData.CreateDecisionAsync(client, project.Id);
+
+        using var response = await client.PostAsync(
+            TechnicalDecisionTestData.AcceptRoute(project.Id, decision.Id),
+            content: null);
+
+        Assert.Equal(HttpStatusCode.PreconditionRequired, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal("Precondition required", problem.Title);
+    }
+
+    [Fact]
+    public async Task Delete_WithoutIfMatch_ReturnsPreconditionRequiredAndPreservesDecision()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var project = await TechnicalDecisionTestData.CreateProjectAsync(client);
+        var decision = await TechnicalDecisionTestData.CreateDecisionAsync(client, project.Id);
+        var route = TechnicalDecisionTestData.DecisionRoute(project.Id, decision.Id);
+
+        using var response = await client.DeleteAsync(route);
+
+        Assert.Equal(HttpStatusCode.PreconditionRequired, response.StatusCode);
+        Assert.NotNull(await client.GetFromJsonAsync<TechnicalDecisionResponse>(route));
+    }
+
+    [Fact]
+    public async Task CompetingTransitions_WithSameEntityTag_OnlyFirstCompletes()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var project = await TechnicalDecisionTestData.CreateProjectAsync(client);
+        var decision = await TechnicalDecisionTestData.CreateDecisionAsync(client, project.Id);
+        var route = TechnicalDecisionTestData.DecisionRoute(project.Id, decision.Id);
+        var entityTag = await HttpPreconditionTestData.GetEntityTagAsync(client, route);
+
+        using var acceptedResponse = await HttpPreconditionTestData.SendWithEntityTagAsync(
+            client,
+            HttpMethod.Post,
+            TechnicalDecisionTestData.AcceptRoute(project.Id, decision.Id),
+            entityTag);
+        using var staleResponse = await HttpPreconditionTestData.SendAsJsonWithEntityTagAsync(
+            client,
+            HttpMethod.Post,
+            TechnicalDecisionTestData.RejectRoute(project.Id, decision.Id),
+            new RejectTechnicalDecisionRequest("Not selected"),
+            entityTag);
+
+        Assert.Equal(HttpStatusCode.OK, acceptedResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.PreconditionFailed, staleResponse.StatusCode);
+        var persisted = await client.GetFromJsonAsync<TechnicalDecisionResponse>(route);
+        Assert.Equal("accepted", persisted?.Status);
+    }
+
+    [Fact]
+    public async Task Delete_WithStaleEntityTag_ReturnsPreconditionFailedAndPreservesDecision()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var project = await TechnicalDecisionTestData.CreateProjectAsync(client);
+        var decision = await TechnicalDecisionTestData.CreateDecisionAsync(client, project.Id);
+        var route = TechnicalDecisionTestData.DecisionRoute(project.Id, decision.Id);
+        var staleEntityTag = await HttpPreconditionTestData.GetEntityTagAsync(client, route);
+        using var updateResponse = await HttpPreconditionTestData.SendAsJsonWithEntityTagAsync(
+            client,
+            HttpMethod.Put,
+            route,
+            new SaveTechnicalDecisionRequest("Updated", "# Updated"),
+            staleEntityTag);
+        updateResponse.EnsureSuccessStatusCode();
+
+        using var response = await HttpPreconditionTestData.SendWithEntityTagAsync(
+            client,
+            HttpMethod.Delete,
+            route,
+            staleEntityTag);
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.NotNull(await client.GetFromJsonAsync<TechnicalDecisionResponse>(route));
+    }
 }

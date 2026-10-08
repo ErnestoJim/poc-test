@@ -33,6 +33,11 @@ public sealed class TechnicalDecisionTests
         Assert.Equal(projectId, decision.ProjectId);
         Assert.Equal("Use SQLite", decision.Title);
         Assert.Equal(Content, decision.Content);
+        Assert.Equal(TechnicalDecisionStatus.Draft, decision.Status);
+        Assert.Null(decision.DecidedAtUtc);
+        Assert.Null(decision.RejectionReason);
+        Assert.Null(decision.SupersededAtUtc);
+        Assert.Null(decision.SupersededByDecisionId);
         Assert.Equal(CreatedAtUtc, decision.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, decision.UpdatedAtUtc);
         Assert.Equal(0, decision.Version);
@@ -144,10 +149,190 @@ public sealed class TechnicalDecisionTests
         Assert.Equal(0, decision.Version);
     }
 
-    private static TechnicalDecision CreateDecision() =>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ValidateRejectionReason_WithMissingReason_ReturnsReasonError(string? reason)
+    {
+        var errors = TechnicalDecision.ValidateRejectionReason(reason);
+
+        Assert.Contains("reason", errors);
+    }
+
+    [Fact]
+    public void ValidateRejectionReason_WithReasonOverMaximumLength_ReturnsReasonError()
+    {
+        var errors = TechnicalDecision.ValidateRejectionReason(
+            new string('a', TechnicalDecision.MaxRejectionReasonLength + 1));
+
+        Assert.Contains("reason", errors);
+    }
+
+    [Fact]
+    public void Accept_FromDraft_RecordsDecisionAndAdvancesVersion()
+    {
+        var decision = CreateDecision();
+
+        decision.Accept(CreatedAtUtc.AddHours(1).AddTicks(1_234));
+
+        Assert.Equal(TechnicalDecisionStatus.Accepted, decision.Status);
+        Assert.Equal(CreatedAtUtc.AddHours(1), decision.DecidedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(1), decision.UpdatedAtUtc);
+        Assert.Null(decision.RejectionReason);
+        Assert.Equal(1, decision.Version);
+    }
+
+    [Fact]
+    public void Reject_FromDraft_NormalizesReasonAndRecordsDecision()
+    {
+        var decision = CreateDecision();
+
+        decision.Reject("  Too expensive.  ", CreatedAtUtc.AddHours(1).AddTicks(1_234));
+
+        Assert.Equal(TechnicalDecisionStatus.Rejected, decision.Status);
+        Assert.Equal("Too expensive.", decision.RejectionReason);
+        Assert.Equal(CreatedAtUtc.AddHours(1), decision.DecidedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(1), decision.UpdatedAtUtc);
+        Assert.Equal(1, decision.Version);
+    }
+
+    [Fact]
+    public void Accept_WhenAlreadyDecided_ThrowsAndPreservesState()
+    {
+        var decision = CreateDecision();
+        decision.Reject("Not selected", CreatedAtUtc.AddHours(1));
+
+        var exception = Assert.Throws<TechnicalDecisionTransitionException>(
+            () => decision.Accept(CreatedAtUtc.AddHours(2)));
+
+        Assert.Equal(TechnicalDecisionStatus.Rejected, exception.CurrentStatus);
+        Assert.Equal(TechnicalDecisionStatus.Accepted, exception.TargetStatus);
+        Assert.Equal(TechnicalDecisionStatus.Rejected, decision.Status);
+        Assert.Equal(1, decision.Version);
+    }
+
+    [Fact]
+    public void Update_WhenAccepted_ThrowsAndPreservesData()
+    {
+        var decision = CreateDecision();
+        decision.Accept(CreatedAtUtc.AddHours(1));
+
+        Assert.Throws<TechnicalDecisionStateException>(() => decision.Update(
+            "Updated",
+            "# Updated",
+            CreatedAtUtc.AddHours(2)));
+
+        Assert.Equal("Decision", decision.Title);
+        Assert.Equal("# Decision", decision.Content);
+        Assert.Equal(1, decision.Version);
+    }
+
+    [Fact]
+    public void EnsureCanDelete_WhenDraft_DoesNotThrow()
+    {
+        var decision = CreateDecision();
+
+        decision.EnsureCanDelete();
+    }
+
+    [Fact]
+    public void EnsureCanDelete_WhenRejected_Throws()
+    {
+        var decision = CreateDecision();
+        decision.Reject("Not selected", CreatedAtUtc.AddHours(1));
+
+        Assert.Throws<TechnicalDecisionStateException>(decision.EnsureCanDelete);
+    }
+
+    [Fact]
+    public void SupersedeWith_LaterAcceptedDecision_RecordsRelationAndPreservesDecisionDate()
+    {
+        var projectId = Guid.NewGuid();
+        var decision = CreateDecision(projectId: projectId);
+        var replacement = CreateDecision(projectId: projectId);
+        decision.Accept(CreatedAtUtc.AddHours(1));
+        replacement.Accept(CreatedAtUtc.AddHours(2));
+
+        decision.SupersedeWith(replacement, CreatedAtUtc.AddHours(3).AddTicks(1_234));
+
+        Assert.Equal(TechnicalDecisionStatus.Superseded, decision.Status);
+        Assert.Equal(CreatedAtUtc.AddHours(1), decision.DecidedAtUtc);
+        Assert.Equal(CreatedAtUtc.AddHours(3), decision.SupersededAtUtc);
+        Assert.Equal(replacement.Id, decision.SupersededByDecisionId);
+        Assert.Equal(CreatedAtUtc.AddHours(3), decision.UpdatedAtUtc);
+        Assert.Equal(2, decision.Version);
+        Assert.Equal(TechnicalDecisionStatus.Accepted, replacement.Status);
+        Assert.Equal(1, replacement.Version);
+    }
+
+    [Fact]
+    public void SupersedeWith_SameDecisionDate_UsesIdentifierAsTieBreaker()
+    {
+        var projectId = Guid.NewGuid();
+        var decision = CreateDecision(
+            Guid.Parse("00000001-0000-0000-0000-000000000000"),
+            projectId);
+        var replacement = CreateDecision(
+            Guid.Parse("00000002-0000-0000-0000-000000000000"),
+            projectId);
+        decision.Accept(CreatedAtUtc.AddHours(1));
+        replacement.Accept(CreatedAtUtc.AddHours(1));
+
+        decision.SupersedeWith(replacement, CreatedAtUtc.AddHours(2));
+
+        Assert.Equal(TechnicalDecisionStatus.Superseded, decision.Status);
+        Assert.Equal(replacement.Id, decision.SupersededByDecisionId);
+    }
+
+    [Fact]
+    public void SupersedeWith_EarlierAcceptedDecision_ThrowsAndPreservesState()
+    {
+        var projectId = Guid.NewGuid();
+        var decision = CreateDecision(projectId: projectId);
+        var replacement = CreateDecision(projectId: projectId);
+        replacement.Accept(CreatedAtUtc.AddHours(1));
+        decision.Accept(CreatedAtUtc.AddHours(2));
+
+        Assert.Throws<TechnicalDecisionTransitionException>(
+            () => decision.SupersedeWith(replacement, CreatedAtUtc.AddHours(3)));
+
+        Assert.Equal(TechnicalDecisionStatus.Accepted, decision.Status);
+        Assert.Null(decision.SupersededAtUtc);
+        Assert.Null(decision.SupersededByDecisionId);
+        Assert.Equal(1, decision.Version);
+    }
+
+    [Fact]
+    public void SupersedeWith_DecisionFromAnotherProject_Throws()
+    {
+        var decision = CreateDecision();
+        var replacement = CreateDecision();
+        decision.Accept(CreatedAtUtc.AddHours(1));
+        replacement.Accept(CreatedAtUtc.AddHours(2));
+
+        Assert.Throws<TechnicalDecisionTransitionException>(
+            () => decision.SupersedeWith(replacement, CreatedAtUtc.AddHours(3)));
+    }
+
+    [Fact]
+    public void SupersedeWith_DraftReplacement_Throws()
+    {
+        var projectId = Guid.NewGuid();
+        var decision = CreateDecision(projectId: projectId);
+        var replacement = CreateDecision(projectId: projectId);
+        decision.Accept(CreatedAtUtc.AddHours(1));
+
+        Assert.Throws<TechnicalDecisionTransitionException>(
+            () => decision.SupersedeWith(replacement, CreatedAtUtc.AddHours(2)));
+    }
+
+    private static TechnicalDecision CreateDecision(
+        Guid? id = null,
+        Guid? projectId = null) =>
         TechnicalDecision.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
+            id ?? Guid.NewGuid(),
+            projectId ?? Guid.NewGuid(),
             "Decision",
             "# Decision",
             CreatedAtUtc);

@@ -33,6 +33,12 @@ internal static class EndpointProblems
             title: "Technical decision not found",
             detail: $"No technical decision with identifier '{decisionId}' was found in this project.");
 
+    public static IResult ReplacementTechnicalDecisionNotFound(Guid decisionId) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Replacement technical decision not found",
+            detail: $"No replacement technical decision with identifier '{decisionId}' was found in this project.");
+
     public static IResult PreconditionRequired() =>
         Results.Problem(
             statusCode: StatusCodes.Status428PreconditionRequired,

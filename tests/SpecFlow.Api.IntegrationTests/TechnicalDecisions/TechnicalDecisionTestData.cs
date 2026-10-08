@@ -13,6 +13,15 @@ internal static class TechnicalDecisionTestData
     public static string DecisionRoute(Guid projectId, Guid decisionId) =>
         $"{DecisionsRoute(projectId)}/{decisionId}";
 
+    public static string AcceptRoute(Guid projectId, Guid decisionId) =>
+        $"{DecisionRoute(projectId, decisionId)}/accept";
+
+    public static string RejectRoute(Guid projectId, Guid decisionId) =>
+        $"{DecisionRoute(projectId, decisionId)}/reject";
+
+    public static string SupersedeRoute(Guid projectId, Guid decisionId) =>
+        $"{DecisionRoute(projectId, decisionId)}/supersede";
+
     public static Task<ProjectResponse> CreateProjectAsync(
         HttpClient client,
         string name = "Test project") =>

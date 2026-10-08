@@ -29,7 +29,11 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}", "delete"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/start", "post"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post"),
-            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put")
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "delete"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/accept", "post"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/reject", "post"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post")
         ];
 
         foreach (var operationReference in conditionalOperations)
@@ -65,7 +69,10 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}/complete", "post", "200"),
             ("/api/projects/{projectId}/technical-decisions", "post", "201"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}", "get", "200"),
-            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put", "200")
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put", "200"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/accept", "post", "200"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/reject", "post", "200"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post", "200")
         ];
 
         foreach (var responseReference in entityTagResponses)
@@ -122,7 +129,11 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/technical-decisions", "post", "CreateTechnicalDecision"),
             ("/api/projects/{projectId}/technical-decisions", "get", "ListTechnicalDecisions"),
             ("/api/projects/{projectId}/technical-decisions/{decisionId}", "get", "GetTechnicalDecision"),
-            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put", "UpdateTechnicalDecision")
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "put", "UpdateTechnicalDecision"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}", "delete", "DeleteTechnicalDecision"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/accept", "post", "AcceptTechnicalDecision"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/reject", "post", "RejectTechnicalDecision"),
+            ("/api/projects/{projectId}/technical-decisions/{decisionId}/supersede", "post", "SupersedeTechnicalDecision")
         ];
 
         Assert.Equal(
@@ -274,7 +285,19 @@ public sealed class OpenApiTests
             "/api/projects/{projectId}/technical-decisions/{decisionId}");
         Assert.True(technicalDecisionPath.TryGetProperty("get", out _));
         Assert.True(technicalDecisionPath.TryGetProperty("put", out _));
-        Assert.False(technicalDecisionPath.TryGetProperty("delete", out _));
+        Assert.True(technicalDecisionPath.TryGetProperty("delete", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/technical-decisions/{decisionId}/accept")
+                .TryGetProperty("post", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/technical-decisions/{decisionId}/reject")
+                .TryGetProperty("post", out _));
+        Assert.True(
+            paths.GetProperty(
+                    "/api/projects/{projectId}/technical-decisions/{decisionId}/supersede")
+                .TryGetProperty("post", out _));
 
         var technicalDecisionProperties = document.RootElement
             .GetProperty("components")
@@ -285,6 +308,12 @@ public sealed class OpenApiTests
         Assert.True(technicalDecisionProperties.TryGetProperty("projectId", out _));
         Assert.True(technicalDecisionProperties.TryGetProperty("title", out _));
         Assert.True(technicalDecisionProperties.TryGetProperty("content", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("status", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("decidedAtUtc", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("rejectionReason", out _));
+        Assert.True(technicalDecisionProperties.TryGetProperty("supersededAtUtc", out _));
+        Assert.True(
+            technicalDecisionProperties.TryGetProperty("supersededByDecisionId", out _));
         Assert.True(technicalDecisionProperties.TryGetProperty("createdAtUtc", out _));
         Assert.True(technicalDecisionProperties.TryGetProperty("updatedAtUtc", out _));
         Assert.False(technicalDecisionProperties.TryGetProperty("version", out _));
