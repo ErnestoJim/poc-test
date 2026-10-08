@@ -3,8 +3,13 @@
 POC en .NET para aprender un flujo de desarrollo asistido por IA con Codex,
 spec-driven development, skills y MCP.
 
-La aplicación proporciona una API para gestionar proyectos y sus propuestas de
-funcionalidades. Las especificaciones están en:
+La aplicación proporciona una API para gestionar proyectos, propuestas de
+funcionalidades, especificaciones en Markdown, criterios de aceptación y tareas
+de implementación. Las propuestas y las tareas cuentan con ciclos de vida
+explícitos, y los recursos editables utilizan concurrencia optimista mediante
+ETags e `If-Match`.
+
+Las especificaciones que definen el comportamiento implementado están en:
 
 - [`specs/0001-projects/spec.md`](specs/0001-projects/spec.md)
 - [`specs/0002-feature-proposals/spec.md`](specs/0002-feature-proposals/spec.md)
