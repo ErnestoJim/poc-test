@@ -66,7 +66,10 @@ dotnet run --project src/SpecFlow.Web
 
 Abre `http://localhost:5195` en el navegador. La página inicial muestra los
 proyectos y permite crear uno incluso con la base vacía. Desde el detalle del
-proyecto puedes crear y consultar propuestas.
+proyecto puedes crear y consultar propuestas. Desde el detalle de una propuesta
+pendiente puedes aceptarla tras confirmación o rechazarla indicando un motivo.
+El detalle muestra la decisión y permite consultar el estado actual si hubo un
+conflicto o se perdió la conexión.
 
 La web llama a la API desde su servidor. Para usar otra dirección, configura
 `SpecFlowApi__BaseUrl` en el proceso web; en desarrollo vale por defecto

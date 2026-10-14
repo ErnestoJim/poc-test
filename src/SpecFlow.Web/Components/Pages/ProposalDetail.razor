@@ -31,6 +31,78 @@ else if (proposal is not null)
         <span class="status large @proposal.Status">@StatusLabel(proposal.Status)</span>
     </div>
 
+    @if (decisionNotice is not null)
+    {
+        <div class="notice decision-notice" role="alert">
+            <p>@decisionNotice</p>
+            @if (actionError is not null && requiresRefresh)
+            {
+                <p>@actionError.Message</p>
+            }
+            @if (requiresRefresh)
+            {
+                <button class="button subtle" @onclick="RefreshProposalAsync" disabled="@refreshing">
+                    @(refreshing ? "Actualizando…" : "Consultar estado actual")
+                </button>
+            }
+        </div>
+    }
+
+    @if (proposal.Status == "pending" && !requiresRefresh)
+    {
+        <section class="decision-section" aria-label="Decidir propuesta">
+            @if (!acceptPromptOpen && !rejectFormOpen)
+            {
+                <p class="eyebrow">Siguiente paso</p>
+                <h2>Decidir esta propuesta</h2>
+                <p>La decisión cierra la propuesta y no se puede cambiar después.</p>
+                <div class="form-actions">
+                    <button class="button primary" @onclick="ShowAcceptPrompt">Aceptar</button>
+                    <button class="button subtle" @onclick="ShowRejectForm">Rechazar</button>
+                </div>
+            }
+            else if (acceptPromptOpen)
+            {
+                <p class="eyebrow">Confirmación</p>
+                <h2>¿Aceptar esta propuesta?</h2>
+                <p>La propuesta quedará aceptada. Esta acción no crea todavía una especificación.</p>
+                @if (actionError is not null)
+                {
+                    <p class="notice error" role="alert">@actionError.Message</p>
+                }
+                <div class="form-actions">
+                    <button class="button primary" @onclick="AcceptAsync" disabled="@submitting">@(submitting ? "Aceptando…" : "Confirmar aceptación")</button>
+                    <button class="button subtle" @onclick="CancelDecision" disabled="@submitting">Cancelar</button>
+                </div>
+            }
+            else if (rejectFormOpen)
+            {
+                <p class="eyebrow">Motivo de rechazo</p>
+                <h2>Rechazar propuesta</h2>
+                <form @onsubmit="RejectAsync" @onsubmit:preventDefault>
+                    <div class="field">
+                        <label for="rejection-reason">Motivo <span class="required">*</span></label>
+                        <textarea id="rejection-reason" @bind="rejectionReason" @bind:event="oninput" @bind:after="ClearReasonError" rows="4"
+                                  disabled="@submitting" aria-invalid="@(actionError?.HasField("reason") == true)"></textarea>
+                        <small>Explica la decisión en un máximo de 1.000 caracteres.</small>
+                        @if (actionError?.HasField("reason") == true)
+                        {
+                            <span class="field-error">Introduce un motivo de hasta 1.000 caracteres.</span>
+                        }
+                    </div>
+                    @if (actionError is not null && !actionError.HasField("reason"))
+                    {
+                        <p class="notice error" role="alert">@actionError.Message</p>
+                    }
+                    <div class="form-actions">
+                        <button class="button primary" type="submit" disabled="@submitting">@(submitting ? "Rechazando…" : "Confirmar rechazo")</button>
+                        <button class="button subtle" type="button" @onclick="CancelDecision" disabled="@submitting">Cancelar</button>
+                    </div>
+                </form>
+            }
+        </section>
+    }
+
     <div class="detail-grid">
         <section class="detail-card">
             <h2>Descripción</h2>
@@ -68,6 +140,14 @@ else if (proposal is not null)
     private ProjectDto? project;
     private ProposalDto? proposal;
     private ApiError? error;
+    private ApiError? actionError;
+    private string? decisionNotice;
+    private string? rejectionReason;
+    private bool acceptPromptOpen;
+    private bool rejectFormOpen;
+    private bool submitting;
+    private bool refreshing;
+    private bool requiresRefresh;
     private bool loading = true;
 
     protected override Task OnParametersSetAsync() => LoadAsync();
@@ -78,6 +158,12 @@ else if (proposal is not null)
         project = null;
         proposal = null;
         error = null;
+        actionError = null;
+        decisionNotice = null;
+        rejectionReason = null;
+        acceptPromptOpen = false;
+        rejectFormOpen = false;
+        requiresRefresh = false;
         if (!Guid.TryParse(ProjectId, out var projectId) || projectId == Guid.Empty ||
             !Guid.TryParse(ProposalId, out var proposalId) || proposalId == Guid.Empty)
         {
@@ -96,6 +182,143 @@ else if (proposal is not null)
             }
         }
         loading = false;
+    }
+
+    private void ShowAcceptPrompt()
+    {
+        acceptPromptOpen = true;
+        rejectFormOpen = false;
+        actionError = null;
+        decisionNotice = null;
+    }
+
+    private void ShowRejectForm()
+    {
+        rejectFormOpen = true;
+        acceptPromptOpen = false;
+        actionError = null;
+        decisionNotice = null;
+    }
+
+    private void CancelDecision()
+    {
+        acceptPromptOpen = false;
+        rejectFormOpen = false;
+        rejectionReason = null;
+        actionError = null;
+        decisionNotice = null;
+    }
+
+    private void ClearReasonError()
+    {
+        if (actionError?.HasField("reason") == true)
+        {
+            actionError = null;
+        }
+    }
+
+    private async Task AcceptAsync()
+    {
+        if (submitting || requiresRefresh || proposal is not { Status: "pending" }) return;
+        submitting = true;
+        try
+        {
+            var result = await Api.AcceptProposalAsync(proposal.ProjectId, proposal.Id);
+            await HandleDecisionResultAsync(result);
+        }
+        finally
+        {
+            submitting = false;
+        }
+    }
+
+    private async Task RejectAsync()
+    {
+        if (submitting || requiresRefresh || proposal is not { Status: "pending" }) return;
+        submitting = true;
+        try
+        {
+            var result = await Api.RejectProposalAsync(proposal.ProjectId, proposal.Id, rejectionReason);
+            await HandleDecisionResultAsync(result);
+        }
+        finally
+        {
+            submitting = false;
+        }
+    }
+
+    private async Task HandleDecisionResultAsync(ApiResult<ProposalDto> result)
+    {
+        actionError = result.Error;
+        if (result.Value is { } updated)
+        {
+            proposal = updated;
+            acceptPromptOpen = false;
+            rejectFormOpen = false;
+            rejectionReason = null;
+            decisionNotice = null;
+            return;
+        }
+
+        if (result.Error?.StatusCode == 404)
+        {
+            error = result.Error;
+            proposal = null;
+            return;
+        }
+
+        if (result.Error?.StatusCode == 409)
+        {
+            requiresRefresh = true;
+            decisionNotice = "Otra petición pudo haber decidido esta propuesta. Consultando su estado actual…";
+            await RefreshProposalAsync();
+            return;
+        }
+
+        if (result.Error is not { StatusCode: 400 } validationError || !validationError.HasField("reason"))
+        {
+            requiresRefresh = true;
+            decisionNotice = "No se conoce el resultado de la decisión. Consulta el estado actual antes de intentarlo de nuevo.";
+        }
+    }
+
+    private async Task RefreshProposalAsync()
+    {
+        if (refreshing || proposal is null) return;
+        refreshing = true;
+        try
+        {
+            var result = await Api.GetProposalAsync(proposal.ProjectId, proposal.Id);
+            if (result.Value is { } current)
+            {
+                proposal = current;
+                requiresRefresh = false;
+                actionError = null;
+                decisionNotice = current.Status == "pending"
+                    ? "La propuesta sigue pendiente. Puedes revisar la decisión y volver a intentarlo."
+                    : "El detalle muestra ahora la decisión vigente.";
+                if (current.Status != "pending")
+                {
+                    acceptPromptOpen = false;
+                    rejectFormOpen = false;
+                }
+            }
+            else if (result.Error?.StatusCode == 404)
+            {
+                error = result.Error;
+                proposal = null;
+            }
+            else
+            {
+                actionError = result.Error;
+                decisionNotice = "No se pudo comprobar el estado actual de la propuesta.";
+                requiresRefresh = true;
+            }
+        }
+        finally
+        {
+            refreshing = false;
+        }
     }
 
     private static string StatusLabel(string status) => status switch

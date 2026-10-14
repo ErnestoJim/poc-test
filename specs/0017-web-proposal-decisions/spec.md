@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 14 de octubre de 2026.
+Implementada y verificada el 14 de octubre de 2026.
 
 ## Base documental
 
@@ -187,4 +187,24 @@ recursos.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, sin advertencias.
+- `dotnet test SpecFlow.slnx --no-build`: 127 pruebas de dominio, 324 de
+  integración de API y 11 de web superadas (462 en total).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes --project
+  src/SpecFlow.Infrastructure --startup-project src/SpecFlow.Api --no-build`:
+  sin cambios pendientes del modelo. Este incremento no alteró API, OpenAPI,
+  dominio ni persistencia.
+- Navegador con API real y SQLite temporal: cancelación y confirmación de
+  aceptación; validación de motivo vacío, compuesto por espacios y de más de
+  1.000 caracteres; corrección del campo; cancelación y confirmación de rechazo;
+  estados finales, fecha y motivo; listado actualizado al volver al proyecto.
+- Conflicto provocado por una decisión externa tras cargar el detalle: el `409`
+  condujo a una lectura del estado vigente y la vista mostró `accepted` sin
+  ofrecer un nuevo envío.
+- API detenida durante un rechazo: la vista mostró resultado incierto, bloqueó
+  nuevos envíos y ofreció consulta manual. Tras reiniciar la API y consultar,
+  la propuesta seguía pendiente y el motivo escrito permanecía en el campo.
+- Un proyecto inexistente mostró el error contextual y el enlace de salida,
+  sin datos de otro proyecto.

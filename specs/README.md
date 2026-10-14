@@ -76,7 +76,7 @@ implementación.
 | [0014](0014-acceptance-criterion-verification/spec.md) | Verificación de criterios de aceptación | Implementada |
 | [0015](0015-follow-up-proposals/spec.md) | Continuaciones de especificaciones verificadas | Implementada |
 | [0016](0016-first-web-interface/spec.md) | Primera interfaz web para proyectos y propuestas | Implementada |
-| [0017](0017-web-proposal-decisions/spec.md) | Decidir propuestas desde la interfaz web | Aprobada para implementación |
+| [0017](0017-web-proposal-decisions/spec.md) | Decidir propuestas desde la interfaz web | Implementada |
 
 ## Crear la siguiente spec
 

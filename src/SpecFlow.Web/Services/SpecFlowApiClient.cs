@@ -50,6 +50,27 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             new { title, description },
             cancellationToken);
 
+    public Task<ApiResult<ProposalDto>> AcceptProposalAsync(
+        Guid projectId,
+        Guid proposalId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ProposalDto>(
+            HttpMethod.Post,
+            $"/api/projects/{projectId}/proposals/{proposalId}/accept",
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<ProposalDto>> RejectProposalAsync(
+        Guid projectId,
+        Guid proposalId,
+        string? reason,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ProposalDto>(
+            HttpMethod.Post,
+            $"/api/projects/{projectId}/proposals/{proposalId}/reject",
+            new { reason },
+            cancellationToken);
+
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpMethod method,
         string path,
