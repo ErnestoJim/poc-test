@@ -13,6 +13,17 @@ public sealed record ProposalDto(
     string? RejectionReason,
     DateTimeOffset CreatedAtUtc);
 
+public sealed record SpecificationDto(
+    Guid Id,
+    Guid FeatureProposalId,
+    string Content,
+    string Status,
+    DateTimeOffset? ApprovedAtUtc,
+    DateTimeOffset? ImplementedAtUtc,
+    DateTimeOffset? VerifiedAtUtc,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
 public sealed record ApiError(int? StatusCode, string Message, IReadOnlySet<string> Fields)
 {
     public bool HasField(string name) => Fields.Contains(name);

@@ -1,0 +1,340 @@
+@page "/projects/{ProjectId}/proposals/{ProposalId}/specification"
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+
+<PageTitle>Especificación · SpecFlow</PageTitle>
+
+<a class="back-link" href="@($"/projects/{ProjectId}/proposals/{ProposalId}")">← Volver a la propuesta</a>
+
+@if (loading)
+{
+    <p class="notice">Cargando especificación…</p>
+}
+else if (loadError is not null)
+{
+    <div class="notice error" role="alert">
+        <p>@loadError.Message</p>
+        @if (loadError.StatusCode is null)
+        {
+            <button class="button subtle" @onclick="LoadAsync">Reintentar</button>
+        }
+        <a class="button subtle" href="/projects">Volver a proyectos</a>
+    </div>
+}
+else if (proposal is not null)
+{
+    <div class="page-heading">
+        <div>
+            <p class="eyebrow">@project?.Name · @proposal.Title</p>
+            <h1>Especificación</h1>
+        </div>
+        @if (specification is not null)
+        {
+            <span class="status large @specification.Status">@StatusLabel(specification.Status)</span>
+        }
+    </div>
+
+    @if (proposal.Status != "accepted")
+    {
+        <div class="notice" role="status">
+            <p>Solo una propuesta aceptada puede tener una especificación.</p>
+            <a class="button subtle" href="@($"/projects/{ProjectId}/proposals/{ProposalId}")">Volver a la propuesta</a>
+        </div>
+    }
+    else
+    {
+        @if (statusNotice is not null)
+        {
+            <div class="notice decision-notice" role="alert">
+                <p>@statusNotice</p>
+                @if (refreshError is not null)
+                {
+                    <p>@refreshError.Message</p>
+                }
+                @if (recovery != RecoveryKind.None)
+                {
+                    <button class="button subtle" @onclick="RefreshStateAsync" disabled="@refreshing">
+                        @(refreshing ? "Consultando…" : "Consultar estado actual")
+                    </button>
+                }
+            </div>
+        }
+
+        @if (specification is not null)
+        {
+            <div class="detail-grid">
+                <section class="detail-card">
+                    <h2>Contenido Markdown</h2>
+                    <pre class="markdown-source">@specification.Content</pre>
+                </section>
+                <aside class="detail-card metadata">
+                    <h2>Información</h2>
+                    <dl>
+                        <dt>Creada</dt>
+                        <dd>@FormatDate(specification.CreatedAtUtc)</dd>
+                        <dt>Actualizada</dt>
+                        <dd>@FormatDate(specification.UpdatedAtUtc)</dd>
+                        @if (specification.ApprovedAtUtc is { } approvedAt)
+                        {
+                            <dt>Aprobada</dt>
+                            <dd>@FormatDate(approvedAt)</dd>
+                        }
+                        @if (specification.ImplementedAtUtc is { } implementedAt)
+                        {
+                            <dt>Implementada</dt>
+                            <dd>@FormatDate(implementedAt)</dd>
+                        }
+                        @if (specification.VerifiedAtUtc is { } verifiedAt)
+                        {
+                            <dt>Verificada</dt>
+                            <dd>@FormatDate(verifiedAt)</dd>
+                        }
+                    </dl>
+                </aside>
+            </div>
+        }
+        else if (missingSpecification && recovery == RecoveryKind.None)
+        {
+            <div class="empty-state compact specification-empty">
+                <span class="empty-icon">◇</span>
+                <h2>Todavía no hay especificación</h2>
+                <p>Escribe el documento que describe esta propuesta aceptada.</p>
+            </div>
+
+            <form class="form-card specification-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <div class="field">
+                    <label for="specification-content">Contenido Markdown <span class="required">*</span></label>
+                    <textarea id="specification-content" class="markdown-editor" @bind="content" @bind:event="oninput"
+                              @bind:after="ClearContentError" rows="18" disabled="@saving"
+                              aria-invalid="@(formError?.HasField("content") == true)"></textarea>
+                    <small>Escribe hasta 100.000 caracteres. El texto se guardará tal como lo envíes.</small>
+                    @if (formError?.HasField("content") == true)
+                    {
+                        <span class="field-error">Introduce contenido Markdown válido de hasta 100.000 caracteres.</span>
+                    }
+                </div>
+                @if (formError is not null && !formError.HasField("content"))
+                {
+                    <p class="notice error" role="alert">@formError.Message</p>
+                }
+                <div class="form-actions">
+                    <button class="button primary" type="submit" disabled="@saving">@(saving ? "Creando…" : "Crear especificación")</button>
+                </div>
+            </form>
+        }
+
+        @if (unsavedContent is not null)
+        {
+            <section class="detail-card unsaved-content" aria-label="Texto local del intento">
+                <h2>Texto local del intento</h2>
+                <p>Compáralo con la versión guardada arriba. Puedes copiarlo antes de salir.</p>
+                <pre class="markdown-source">@unsavedContent</pre>
+            </section>
+        }
+    }
+}
+
+@code {
+    [Parameter] public string ProjectId { get; set; } = "";
+    [Parameter] public string ProposalId { get; set; } = "";
+
+    private enum RecoveryKind { None, Conflict, Unknown }
+
+    private ProjectDto? project;
+    private ProposalDto? proposal;
+    private SpecificationDto? specification;
+    private ApiError? loadError;
+    private ApiError? formError;
+    private ApiError? refreshError;
+    private string? statusNotice;
+    private string? content;
+    private string? unsavedContent;
+    private RecoveryKind recovery;
+    private bool missingSpecification;
+    private bool loading = true;
+    private bool saving;
+    private bool refreshing;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        project = null;
+        proposal = null;
+        specification = null;
+        loadError = null;
+        formError = null;
+        refreshError = null;
+        statusNotice = null;
+        content = null;
+        unsavedContent = null;
+        recovery = RecoveryKind.None;
+        missingSpecification = false;
+
+        if (!Guid.TryParse(ProjectId, out var projectId) || projectId == Guid.Empty ||
+            !Guid.TryParse(ProposalId, out var proposalId) || proposalId == Guid.Empty)
+        {
+            loadError = new ApiError(400, "El identificador de la ruta no es válido.", new HashSet<string>());
+        }
+        else
+        {
+            var projectResult = await Api.GetProjectAsync(projectId);
+            project = projectResult.Value;
+            loadError = projectResult.Error;
+            if (project is not null)
+            {
+                var proposalResult = await Api.GetProposalAsync(projectId, proposalId);
+                proposal = proposalResult.Value;
+                loadError = proposalResult.Error;
+                if (proposal is { Status: "accepted" })
+                {
+                    var specificationResult = await Api.GetSpecificationAsync(projectId, proposalId);
+                    specification = specificationResult.Value;
+                    missingSpecification = specificationResult.Error?.StatusCode == 404;
+                    loadError = missingSpecification ? null : specificationResult.Error;
+                }
+            }
+        }
+        loading = false;
+    }
+
+    private void ClearContentError()
+    {
+        if (formError?.HasField("content") == true)
+        {
+            formError = null;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (saving || recovery != RecoveryKind.None || !missingSpecification ||
+            proposal is not { Status: "accepted" }) return;
+
+        saving = true;
+        formError = null;
+        try
+        {
+            var result = await Api.CreateSpecificationAsync(proposal.ProjectId, proposal.Id, content);
+            if (result.Value is { } created)
+            {
+                specification = created;
+                missingSpecification = false;
+                content = null;
+                return;
+            }
+
+            if (result.Error?.StatusCode == 400 && result.Error.HasField("content"))
+            {
+                formError = result.Error;
+                return;
+            }
+
+            if (result.Error?.StatusCode == 404)
+            {
+                loadError = result.Error;
+                return;
+            }
+
+            recovery = result.Error?.StatusCode == 409 ? RecoveryKind.Conflict : RecoveryKind.Unknown;
+            statusNotice = recovery == RecoveryKind.Conflict
+                ? "Otra petición pudo haber creado esta especificación. Consultando su estado actual…"
+                : "No se conoce el resultado de la creación. Consulta el estado actual antes de intentarlo de nuevo.";
+            refreshError = result.Error;
+            if (recovery == RecoveryKind.Conflict)
+            {
+                await RefreshStateAsync();
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task RefreshStateAsync()
+    {
+        if (refreshing || proposal is null || recovery == RecoveryKind.None) return;
+        refreshing = true;
+        refreshError = null;
+        try
+        {
+            var projectResult = await Api.GetProjectAsync(proposal.ProjectId);
+            if (projectResult.Value is null)
+            {
+                HandleRefreshError(projectResult.Error);
+                return;
+            }
+            project = projectResult.Value;
+
+            var proposalResult = await Api.GetProposalAsync(proposal.ProjectId, proposal.Id);
+            if (proposalResult.Value is not { Status: "accepted" } currentProposal)
+            {
+                HandleRefreshError(proposalResult.Error);
+                if (proposalResult.Value is not null)
+                {
+                    proposal = proposalResult.Value;
+                    recovery = RecoveryKind.None;
+                }
+                return;
+            }
+            proposal = currentProposal;
+
+            var specificationResult = await Api.GetSpecificationAsync(proposal.ProjectId, proposal.Id);
+            if (specificationResult.Value is { } currentSpecification)
+            {
+                specification = currentSpecification;
+                missingSpecification = false;
+                unsavedContent = content;
+                content = null;
+                recovery = RecoveryKind.None;
+                refreshError = null;
+                statusNotice = "La especificación mostrada es la versión guardada en la API.";
+            }
+            else if (specificationResult.Error?.StatusCode == 404)
+            {
+                specification = null;
+                missingSpecification = true;
+                if (recovery == RecoveryKind.Unknown)
+                {
+                    recovery = RecoveryKind.None;
+                    statusNotice = "La especificación aún no existe. Puedes revisar el texto y volver a crearla.";
+                }
+                else
+                {
+                    statusNotice = "La creación entró en conflicto, pero no se pudo confirmar una especificación existente. Consulta el estado de nuevo.";
+                }
+            }
+            else
+            {
+                HandleRefreshError(specificationResult.Error);
+            }
+        }
+        finally
+        {
+            refreshing = false;
+        }
+    }
+
+    private void HandleRefreshError(ApiError? error)
+    {
+        refreshError = error;
+        statusNotice = "No se pudo comprobar el estado actual de la especificación.";
+        if (error?.StatusCode == 404)
+        {
+            loadError = error;
+        }
+    }
+
+    private static string FormatDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "draft" => "Borrador",
+        "approved" => "Aprobada",
+        "implemented" => "Implementada",
+        "verified" => "Verificada",
+        _ => "Estado desconocido"
+    };
+}

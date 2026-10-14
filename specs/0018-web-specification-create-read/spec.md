@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 14 de octubre de 2026.
+Implementada y verificada el 14 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -195,4 +195,34 @@ de este incremento. No se modifica la concurrencia definida en la spec 0009.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, sin advertencias.
+- `dotnet test SpecFlow.slnx --no-build`: 127 pruebas de dominio, 324 de
+  integración de API y 16 de web superadas (467 en total). La primera ejecución
+  encontró el fallo intermitente ya conocido de
+  `ConcurrentFollowUps_CanShareVerifiedSource` (0015); la prueba aislada y la
+  repetición completa pasaron.
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore`,
+  `git diff --check` y `dotnet ef migrations has-pending-model-changes`:
+  correctos; no hay cambios del modelo. La 0018 no modificó API, OpenAPI,
+  dominio ni persistencia.
+- Cliente HTTP: ruta singular, JSON y Markdown exactos, respuesta consultada,
+  `400` con `content`, `404`, `409` y fallo de conexión.
+- Navegador con API real y SQLite temporal: acceso desde propuesta aceptada,
+  estado vacío, validación de contenido vacío, solo espacios y 100.001
+  caracteres, creación, lectura tras recargar, contenido literal y estado
+  `draft`; acceso directo desde propuestas pendientes y rechazadas sin
+  formulario, e identificador de ruta inválido con error contextual.
+- Aislamiento comprobado con proyecto inexistente y con una propuesta real
+  bajo otro proyecto: no se mostró el contenido de la especificación.
+- Creación concurrente provocada desde la API: el `409` condujo a consultar la
+  especificación existente y la web conservó el texto local por separado, sin
+  repetir la creación.
+- API detenida durante `POST`: la web bloqueó un nuevo envío y pidió consultar
+  el estado; la lectura fallida mantuvo el bloqueo. Tras reiniciar la API, la
+  consulta confirmó la ausencia del recurso y recuperó el formulario con el
+  texto intacto. La carga inicial sin API mostró error y «Reintentar», no un
+  estado vacío, y se recuperó al volver la conexión.
+- Por revisión del componente, un estado de propuesta desconocido no habilita
+  la creación y un fallo del `GET` inmediatamente posterior a `409` mantiene
+  el bloqueo y ofrece consulta manual. Esas dos ramas defensivas no se forzaron
+  en navegador con la API real.

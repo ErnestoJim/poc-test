@@ -103,6 +103,16 @@ else if (proposal is not null)
         </section>
     }
 
+    @if (proposal.Status == "accepted")
+    {
+        <section class="decision-section" aria-label="Especificación de la propuesta">
+            <p class="eyebrow">Siguiente paso</p>
+            <h2>Especificación</h2>
+            <p>Consulta la especificación de esta propuesta o crea una si aún no existe.</p>
+            <a class="button primary" href="@($"/projects/{ProjectId}/proposals/{ProposalId}/specification")">Abrir especificación</a>
+        </section>
+    }
+
     <div class="detail-grid">
         <section class="detail-card">
             <h2>Descripción</h2>

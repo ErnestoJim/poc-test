@@ -125,6 +125,68 @@ public sealed class SpecFlowApiClientTests
         Assert.NotEmpty(result.Error!.Message);
     }
 
+    [Fact]
+    public async Task SpecificationOperationsUseSingularRouteAndPreserveMarkdown()
+    {
+        const string markdown = "# Objetivo\r\n\r\n  Texto literal  ";
+        var specification = new SpecificationDto(
+            Guid.NewGuid(), ProposalId, markdown, "draft", null, null, null, CreatedAt, CreatedAt);
+        var handler = new RecordingHandler(
+            new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = JsonContent.Create(new { title = "Specification not found" })
+            },
+            new HttpResponseMessage(HttpStatusCode.Created) { Content = JsonContent.Create(specification) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(specification) });
+        var client = CreateClient(handler);
+
+        var missing = await client.GetSpecificationAsync(ProjectId, ProposalId);
+        var created = await client.CreateSpecificationAsync(ProjectId, ProposalId, markdown);
+        var fetched = await client.GetSpecificationAsync(ProjectId, ProposalId);
+
+        Assert.Equal(404, missing.Error?.StatusCode);
+        Assert.Equal(markdown, created.Value?.Content);
+        Assert.Equal("draft", created.Value?.Status);
+        Assert.Equal(CreatedAt, fetched.Value?.UpdatedAtUtc);
+        Assert.Equal(
+            [$"GET /api/projects/{ProjectId}/proposals/{ProposalId}/specification",
+             $"POST /api/projects/{ProjectId}/proposals/{ProposalId}/specification",
+             $"GET /api/projects/{ProjectId}/proposals/{ProposalId}/specification"],
+            handler.Requests.Select(r => r.Route));
+        Assert.Equal(markdown, handler.Requests[1].Body!.Value.GetProperty("content").GetString());
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, 400, true)]
+    [InlineData(HttpStatusCode.Conflict, 409, false)]
+    [InlineData(HttpStatusCode.NotFound, 404, false)]
+    public async Task SpecificationCreationErrorsKeepStatusAndContentField(HttpStatusCode status, int expectedStatus, bool hasContent)
+    {
+        var handler = new RecordingHandler(new HttpResponseMessage(status)
+        {
+            Content = JsonContent.Create(new
+            {
+                title = "Error",
+                errors = hasContent ? new Dictionary<string, string[]> { ["content"] = ["Invalid"] } : null
+            })
+        });
+
+        var result = await CreateClient(handler).CreateSpecificationAsync(ProjectId, ProposalId, "");
+
+        Assert.Null(result.Value);
+        Assert.Equal(expectedStatus, result.Error?.StatusCode);
+        Assert.Equal(hasContent, result.Error?.HasField("content"));
+    }
+
+    [Fact]
+    public async Task SpecificationCreationNetworkFailureHasUnknownStatus()
+    {
+        var result = await CreateClient(new FailingHandler()).CreateSpecificationAsync(ProjectId, ProposalId, "# Documento");
+
+        Assert.Null(result.Value);
+        Assert.Null(result.Error?.StatusCode);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.BadRequest, "name", 400)]
     [InlineData(HttpStatusCode.Conflict, "name", 409)]

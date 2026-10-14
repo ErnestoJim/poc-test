@@ -71,6 +71,27 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             new { reason },
             cancellationToken);
 
+    public Task<ApiResult<SpecificationDto>> GetSpecificationAsync(
+        Guid projectId,
+        Guid proposalId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<SpecificationDto>(
+            HttpMethod.Get,
+            $"/api/projects/{projectId}/proposals/{proposalId}/specification",
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<SpecificationDto>> CreateSpecificationAsync(
+        Guid projectId,
+        Guid proposalId,
+        string? content,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<SpecificationDto>(
+            HttpMethod.Post,
+            $"/api/projects/{projectId}/proposals/{proposalId}/specification",
+            new { content },
+            cancellationToken);
+
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpMethod method,
         string path,
