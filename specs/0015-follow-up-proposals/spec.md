@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 14 de octubre de 2026.
+Implementada y verificada el 14 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -215,4 +215,16 @@ Nueva migración propuesta: `AddFeatureProposalFollowUps`.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- Dominio, HTTP, SQLite y migración `AddFeatureProposalFollowUps` implementados
+  según los criterios de aceptación. OpenAPI y README reflejan el contrato nuevo.
+- Pruebas de dominio y HTTP cubren el origen opcional, validación, aislamiento por
+  proyecto, estado verificado, continuidad del ciclo y consulta de hijas directas.
+  También se comprobaron dos creaciones concurrentes, persistencia tras reinicio,
+  integridad por foreign key y migración de una propuesta anterior.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 451 pruebas correctas (127 de dominio y
+  324 de integración).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore`: correcto.
+- `dotnet ef migrations has-pending-model-changes --project
+  src/SpecFlow.Infrastructure --startup-project src/SpecFlow.Api --no-build`:
+  sin cambios pendientes del modelo.

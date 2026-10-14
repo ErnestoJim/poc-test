@@ -26,4 +26,25 @@ public sealed class FeatureProposalForeignKeyTests
         await Assert.ThrowsAsync<DbUpdateException>(
             () => dbContext.SaveChangesAsync());
     }
+
+    [Fact]
+    public async Task Save_WithUnknownSourceProposal_IsRejectedByDatabase()
+    {
+        using var factory = new SpecFlowApiFactory();
+        using var client = factory.CreateClient();
+        var project = await FeatureProposalTestData.CreateProjectAsync(client);
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<SpecFlowDbContext>();
+        var proposal = FeatureProposal.Create(
+            Guid.NewGuid(),
+            project.Id,
+            "Orphan follow-up",
+            null,
+            factory.TimeProvider.GetUtcNow(),
+            Guid.NewGuid());
+        dbContext.FeatureProposals.Add(proposal);
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            () => dbContext.SaveChangesAsync());
+    }
 }

@@ -24,10 +24,45 @@ public sealed class FeatureProposalTests
         Assert.Equal(projectId, proposal.ProjectId);
         Assert.Equal("Add acceptance criteria", proposal.Title);
         Assert.Equal("Allow verifiable criteria", proposal.Description);
+        Assert.Null(proposal.SourceProposalId);
         Assert.Equal(FeatureProposalStatus.Pending, proposal.Status);
         Assert.Null(proposal.DecidedAtUtc);
         Assert.Null(proposal.RejectionReason);
         Assert.Equal(CreatedAtUtc, proposal.CreatedAtUtc);
+    }
+
+    [Fact]
+    public void Create_WithSourceProposal_PreservesImmutableOriginAcrossDecision()
+    {
+        var sourceProposalId = Guid.NewGuid();
+        var proposal = FeatureProposal.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Follow-up",
+            null,
+            CreatedAtUtc,
+            sourceProposalId);
+
+        Assert.Equal(sourceProposalId, proposal.SourceProposalId);
+        proposal.Accept(CreatedAtUtc.AddHours(1));
+        Assert.Equal(sourceProposalId, proposal.SourceProposalId);
+    }
+
+    [Fact]
+    public void Create_WithEmptyOrSelfSource_RejectsOrigin()
+    {
+        var id = Guid.NewGuid();
+        foreach (var sourceProposalId in new[] { Guid.Empty, id })
+        {
+            var exception = Assert.Throws<ArgumentException>(() => FeatureProposal.Create(
+                id,
+                Guid.NewGuid(),
+                "Follow-up",
+                null,
+                CreatedAtUtc,
+                sourceProposalId));
+            Assert.Equal("sourceProposalId", exception.ParamName);
+        }
     }
 
     [Fact]

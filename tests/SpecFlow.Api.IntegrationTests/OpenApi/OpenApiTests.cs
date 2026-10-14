@@ -119,6 +119,7 @@ public sealed class OpenApiTests
             ("/api/projects/{projectId}/proposals", "post", "CreateFeatureProposal"),
             ("/api/projects/{projectId}/proposals", "get", "ListFeatureProposals"),
             ("/api/projects/{projectId}/proposals/{proposalId}", "get", "GetFeatureProposal"),
+            ("/api/projects/{projectId}/proposals/{proposalId}/follow-ups", "get", "ListFollowUpProposals"),
             ("/api/projects/{projectId}/proposals/{proposalId}/accept", "post", "AcceptFeatureProposal"),
             ("/api/projects/{projectId}/proposals/{proposalId}/reject", "post", "RejectFeatureProposal"),
             ("/api/projects/{projectId}/proposals/{proposalId}/specification", "post", "CreateSpecification"),
@@ -197,6 +198,14 @@ public sealed class OpenApiTests
         Assert.True(
             paths.GetProperty("/api/projects/{projectId}/proposals/{proposalId}")
                 .TryGetProperty("get", out _));
+        var followUps = paths.GetProperty(
+            "/api/projects/{projectId}/proposals/{proposalId}/follow-ups")
+            .GetProperty("get");
+        Assert.True(followUps.GetProperty("responses").TryGetProperty("200", out _));
+        Assert.True(followUps.GetProperty("responses").TryGetProperty("404", out _));
+        var createProposal = paths.GetProperty("/api/projects/{projectId}/proposals")
+            .GetProperty("post");
+        Assert.True(createProposal.GetProperty("responses").TryGetProperty("409", out _));
         Assert.True(
             paths.GetProperty("/api/projects/{projectId}/proposals/{proposalId}/accept")
                 .TryGetProperty("post", out _));
@@ -229,6 +238,13 @@ public sealed class OpenApiTests
         Assert.True(responseProperties.TryGetProperty("status", out _));
         Assert.True(responseProperties.TryGetProperty("decidedAtUtc", out _));
         Assert.True(responseProperties.TryGetProperty("rejectionReason", out _));
+        Assert.True(responseProperties.TryGetProperty("sourceProposalId", out _));
+        var createProposalProperties = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("CreateFeatureProposalRequest")
+            .GetProperty("properties");
+        Assert.True(createProposalProperties.TryGetProperty("sourceProposalId", out _));
 
         var specificationProperties = document.RootElement
             .GetProperty("components")

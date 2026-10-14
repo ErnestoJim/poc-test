@@ -31,6 +31,7 @@ public sealed class CreateFeatureProposalTests
         Assert.Equal(project.Id, createdProposal.ProjectId);
         Assert.Equal("Add acceptance criteria", createdProposal.Title);
         Assert.Equal("Allow verifiable criteria", createdProposal.Description);
+        Assert.Null(createdProposal.SourceProposalId);
         Assert.Equal("pending", createdProposal.Status);
         Assert.Null(createdProposal.DecidedAtUtc);
         Assert.Null(createdProposal.RejectionReason);

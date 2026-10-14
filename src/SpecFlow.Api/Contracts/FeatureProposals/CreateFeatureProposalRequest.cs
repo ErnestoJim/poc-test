@@ -1,3 +1,6 @@
 namespace SpecFlow.Api.Contracts.FeatureProposals;
 
-public sealed record CreateFeatureProposalRequest(string? Title, string? Description);
+public sealed record CreateFeatureProposalRequest(
+    string? Title,
+    string? Description,
+    string? SourceProposalId = null);

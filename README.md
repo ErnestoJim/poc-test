@@ -62,6 +62,7 @@ Endpoints:
 - `GET /api/projects`
 - `POST /api/projects/{projectId}/proposals`
 - `GET /api/projects/{projectId}/proposals/{proposalId}`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/follow-ups`
 - `GET /api/projects/{projectId}/proposals`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/accept`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/reject`
@@ -117,8 +118,23 @@ curl --request POST http://localhost:5194/api/projects/{projectId}/proposals \
   --data '{"title":"Add acceptance criteria","description":"Allow verifiable criteria"}'
 ```
 
-Las propuestas comienzan en estado `pending`. Para aceptarlas o rechazarlas,
-sustituye también `{proposalId}` por el identificador de la propuesta:
+Una propuesta nueva puede continuar el trabajo de otra propuesta del mismo
+proyecto cuya especificación ya esté `verified`. Se indica su origen con
+`sourceProposalId`; la nueva propuesta empieza en `pending` y sigue su propio
+ciclo. La propuesta y la especificación de origen permanecen intactas. Las
+respuestas y listados de propuestas incluyen `sourceProposalId` (`null` cuando
+no hay origen), y la ruta `follow-ups` devuelve las continuaciones directas:
+
+```bash
+curl --request POST http://localhost:5194/api/projects/{projectId}/proposals \
+  --header 'Content-Type: application/json' \
+  --data '{"title":"Extend verified behavior","sourceProposalId":"{verifiedProposalId}"}'
+
+curl http://localhost:5194/api/projects/{projectId}/proposals/{verifiedProposalId}/follow-ups
+```
+
+Para aceptarlas o rechazarlas, sustituye también `{proposalId}` por el
+identificador de la propuesta:
 
 ```bash
 curl --request POST \

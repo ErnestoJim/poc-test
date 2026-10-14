@@ -15,12 +15,14 @@ public sealed class FeatureProposal
         Guid projectId,
         string title,
         string? description,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        Guid? sourceProposalId)
     {
         Id = id;
         ProjectId = projectId;
         Title = title;
         Description = description;
+        SourceProposalId = sourceProposalId;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -31,6 +33,8 @@ public sealed class FeatureProposal
     public string Title { get; private set; } = string.Empty;
 
     public string? Description { get; private set; }
+
+    public Guid? SourceProposalId { get; private set; }
 
     public FeatureProposalStatus Status { get; private set; } = FeatureProposalStatus.Pending;
 
@@ -47,7 +51,8 @@ public sealed class FeatureProposal
         Guid projectId,
         string? title,
         string? description,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        Guid? sourceProposalId = null)
     {
         if (id == Guid.Empty)
         {
@@ -57,6 +62,13 @@ public sealed class FeatureProposal
         if (projectId == Guid.Empty)
         {
             throw new ArgumentException("The project identifier cannot be empty.", nameof(projectId));
+        }
+
+        if (sourceProposalId == Guid.Empty || sourceProposalId == id)
+        {
+            throw new ArgumentException(
+                "The source proposal identifier must refer to another proposal.",
+                nameof(sourceProposalId));
         }
 
         var errors = Validate(title, description);
@@ -75,7 +87,8 @@ public sealed class FeatureProposal
             projectId,
             trimmedTitle,
             trimmedDescription,
-            normalizedCreatedAtUtc);
+            normalizedCreatedAtUtc,
+            sourceProposalId);
     }
 
     public void Accept(DateTimeOffset decidedAtUtc)

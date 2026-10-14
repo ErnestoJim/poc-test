@@ -74,7 +74,7 @@ implementación.
 | [0012](0012-acceptance-criterion-task-traceability/spec.md) | Trazabilidad entre criterios y tareas | Implementada |
 | [0013](0013-specification-lifecycle/spec.md) | Ciclo de vida de especificaciones | Implementada |
 | [0014](0014-acceptance-criterion-verification/spec.md) | Verificación de criterios de aceptación | Implementada |
-| [0015](0015-follow-up-proposals/spec.md) | Continuaciones de especificaciones verificadas | Aprobada para implementación |
+| [0015](0015-follow-up-proposals/spec.md) | Continuaciones de especificaciones verificadas | Implementada |
 
 ## Crear la siguiente spec
 

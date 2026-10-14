@@ -30,6 +30,13 @@ internal sealed class FeatureProposalConfiguration : IEntityTypeConfiguration<Fe
 
         builder.HasIndex(proposal => proposal.ProjectId);
 
+        builder.HasOne<FeatureProposal>()
+            .WithMany()
+            .HasForeignKey(proposal => proposal.SourceProposalId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(proposal => proposal.SourceProposalId);
+
         builder.Property(proposal => proposal.Title)
             .HasMaxLength(FeatureProposal.MaxTitleLength)
             .IsRequired();

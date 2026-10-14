@@ -105,6 +105,9 @@ namespace SpecFlow.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("SourceProposalId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -124,6 +127,8 @@ namespace SpecFlow.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId");
+
+                    b.HasIndex("SourceProposalId");
 
                     b.ToTable("FeatureProposals", (string)null);
                 });
@@ -368,6 +373,11 @@ namespace SpecFlow.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("SpecFlow.Domain.FeatureProposals.FeatureProposal", null)
+                        .WithMany()
+                        .HasForeignKey("SourceProposalId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("SpecFlow.Domain.ImplementationTasks.ImplementationTask", b =>
