@@ -1,0 +1,72 @@
+@page "/projects/new"
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Nuevo proyecto · SpecFlow</PageTitle>
+
+<div class="narrow-page">
+    <a class="back-link" href="/projects">← Proyectos</a>
+    <p class="eyebrow">Nuevo espacio</p>
+    <h1>Crear proyecto</h1>
+    <p class="lead">Ponle un nombre al trabajo que quieres organizar.</p>
+
+    <form class="form-card" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+        <div class="field">
+            <label for="project-name">Nombre <span class="required">*</span></label>
+            <input id="project-name" @bind="name" @bind:event="oninput" aria-invalid="@(error?.HasField("name") == true)" />
+            <small>Entre 1 y 100 caracteres.</small>
+            @if (error?.HasField("name") == true)
+            {
+                <span class="field-error">@(error.StatusCode == 409 ? "Ya existe un proyecto con ese nombre." : "Introduce un nombre válido de hasta 100 caracteres.")</span>
+            }
+        </div>
+        <div class="field">
+            <label for="project-description">Descripción <span class="optional">opcional</span></label>
+            <textarea id="project-description" @bind="description" @bind:event="oninput" rows="5" aria-invalid="@(error?.HasField("description") == true)"></textarea>
+            <small>Hasta 1.000 caracteres.</small>
+            @if (error?.HasField("description") == true)
+            {
+                <span class="field-error">La descripción no puede superar 1.000 caracteres.</span>
+            }
+        </div>
+        @if (error is not null && !(error.StatusCode == 409 && error.HasField("name")))
+        {
+            <p class="notice error" role="alert">@error.Message</p>
+        }
+        <div class="form-actions">
+            <button class="button primary" type="submit" disabled="@saving">@(saving ? "Creando…" : "Crear proyecto")</button>
+            <a class="button subtle" href="/projects">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@code {
+    private string? name;
+    private string? description;
+    private ApiError? error;
+    private bool saving;
+
+    private async Task SubmitAsync()
+    {
+        if (saving) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var result = await Api.CreateProjectAsync(name, description);
+            if (result.Value is { } project)
+            {
+                Navigation.NavigateTo($"/projects/{project.Id}");
+            }
+            else
+            {
+                error = result.Error;
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

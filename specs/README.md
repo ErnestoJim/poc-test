@@ -75,7 +75,7 @@ implementación.
 | [0013](0013-specification-lifecycle/spec.md) | Ciclo de vida de especificaciones | Implementada |
 | [0014](0014-acceptance-criterion-verification/spec.md) | Verificación de criterios de aceptación | Implementada |
 | [0015](0015-follow-up-proposals/spec.md) | Continuaciones de especificaciones verificadas | Implementada |
-| [0016](0016-first-web-interface/spec.md) | Primera interfaz web para proyectos y propuestas | Aprobada para implementación |
+| [0016](0016-first-web-interface/spec.md) | Primera interfaz web para proyectos y propuestas | Implementada |
 
 ## Crear la siguiente spec
 

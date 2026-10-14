@@ -1,0 +1,108 @@
+@page "/projects/{ProjectId}/proposals/{ProposalId}"
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+
+<PageTitle>@(proposal?.Title ?? "Propuesta") · SpecFlow</PageTitle>
+
+<a class="back-link" href="@($"/projects/{ProjectId}")">← Volver al proyecto</a>
+
+@if (loading)
+{
+    <p class="notice">Cargando propuesta…</p>
+}
+else if (error is not null)
+{
+    <div class="notice error" role="alert">
+        <p>@error.Message</p>
+        @if (error.StatusCode is null)
+        {
+            <button class="button subtle" @onclick="LoadAsync">Reintentar</button>
+        }
+        <a class="button subtle" href="/projects">Volver a proyectos</a>
+    </div>
+}
+else if (proposal is not null)
+{
+    <div class="page-heading">
+        <div>
+            <p class="eyebrow">Propuesta · <a href="@($"/projects/{ProjectId}")">@project?.Name</a></p>
+            <h1>@proposal.Title</h1>
+        </div>
+        <span class="status large @proposal.Status">@StatusLabel(proposal.Status)</span>
+    </div>
+
+    <div class="detail-grid">
+        <section class="detail-card">
+            <h2>Descripción</h2>
+            <p class="description">@(proposal.Description ?? "Esta propuesta no tiene descripción.")</p>
+        </section>
+        <aside class="detail-card metadata">
+            <h2>Información</h2>
+            <dl>
+                <dt>Creada</dt>
+                <dd>@proposal.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+                @if (proposal.DecidedAtUtc is { } decidedAt)
+                {
+                    <dt>Decidida</dt>
+                    <dd>@decidedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+                }
+                @if (proposal.RejectionReason is not null)
+                {
+                    <dt>Motivo de rechazo</dt>
+                    <dd>@proposal.RejectionReason</dd>
+                }
+                @if (proposal.SourceProposalId is { } sourceId)
+                {
+                    <dt>Continúa a</dt>
+                    <dd><a href="@($"/projects/{ProjectId}/proposals/{sourceId}")">Ver propuesta de origen →</a></dd>
+                }
+            </dl>
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public string ProjectId { get; set; } = "";
+    [Parameter] public string ProposalId { get; set; } = "";
+
+    private ProjectDto? project;
+    private ProposalDto? proposal;
+    private ApiError? error;
+    private bool loading = true;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        project = null;
+        proposal = null;
+        error = null;
+        if (!Guid.TryParse(ProjectId, out var projectId) || projectId == Guid.Empty ||
+            !Guid.TryParse(ProposalId, out var proposalId) || proposalId == Guid.Empty)
+        {
+            error = new ApiError(400, "El identificador de la ruta no es válido.", new HashSet<string>());
+        }
+        else
+        {
+            var projectResult = await Api.GetProjectAsync(projectId);
+            project = projectResult.Value;
+            error = projectResult.Error;
+            if (project is not null)
+            {
+                var proposalResult = await Api.GetProposalAsync(projectId, proposalId);
+                proposal = proposalResult.Value;
+                error = proposalResult.Error;
+            }
+        }
+        loading = false;
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "pending" => "Pendiente",
+        "accepted" => "Aceptada",
+        "rejected" => "Rechazada",
+        _ => "Estado desconocido"
+    };
+}

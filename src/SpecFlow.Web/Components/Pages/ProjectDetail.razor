@@ -1,0 +1,123 @@
+@page "/projects/{ProjectId}"
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+
+<PageTitle>@(project?.Name ?? "Proyecto") · SpecFlow</PageTitle>
+
+<a class="back-link" href="/projects">← Proyectos</a>
+
+@if (loading)
+{
+    <p class="notice">Cargando proyecto…</p>
+}
+else if (error is not null)
+{
+    <div class="notice error" role="alert">
+        <p>@error.Message</p>
+        @if (error.StatusCode is null)
+        {
+            <button class="button subtle" @onclick="LoadAsync">Reintentar</button>
+        }
+        <a class="button subtle" href="/projects">Volver a proyectos</a>
+    </div>
+}
+else if (project is not null)
+{
+    <div class="page-heading">
+        <div>
+            <p class="eyebrow">Proyecto</p>
+            <h1>@project.Name</h1>
+            <p class="lead">@(project.Description ?? "Sin descripción")</p>
+        </div>
+        <a class="button primary" href="@($"/projects/{project.Id}/proposals/new")">Nueva propuesta</a>
+    </div>
+
+    <section class="section-block" aria-labelledby="proposals-title">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Dentro del proyecto</p>
+                <h2 id="proposals-title">Propuestas</h2>
+            </div>
+            @if (proposals is not null)
+            {
+                <span class="count-pill">@proposals.Count</span>
+            }
+        </div>
+        @if (proposalError is not null)
+        {
+            <div class="notice error" role="alert">
+                <p>@proposalError.Message</p>
+                <button class="button subtle" @onclick="LoadAsync">Reintentar</button>
+            </div>
+        }
+        else if (proposals is { Count: 0 })
+        {
+            <div class="empty-state compact">
+                <h3>Aún no hay propuestas</h3>
+                <p>Describe la primera idea para este proyecto.</p>
+                <a class="button primary" href="@($"/projects/{project.Id}/proposals/new")">Crear propuesta</a>
+            </div>
+        }
+        else if (proposals is not null)
+        {
+            <div class="proposal-list">
+                @foreach (var proposal in proposals)
+                {
+                    <a class="proposal-row" href="@($"/projects/{project.Id}/proposals/{proposal.Id}")">
+                        <div>
+                            <h3>@proposal.Title</h3>
+                            <p>@(proposal.Description ?? "Sin descripción")</p>
+                        </div>
+                        <span class="status @proposal.Status">@StatusLabel(proposal.Status)</span>
+                    </a>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public string ProjectId { get; set; } = "";
+
+    private ProjectDto? project;
+    private List<ProposalDto>? proposals;
+    private ApiError? error;
+    private ApiError? proposalError;
+    private bool loading = true;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        project = null;
+        proposals = null;
+        error = null;
+        proposalError = null;
+        if (!Guid.TryParse(ProjectId, out var id) || id == Guid.Empty)
+        {
+            error = new ApiError(400, "El identificador del proyecto no es válido.", new HashSet<string>());
+        }
+        else
+        {
+            var projectResult = await Api.GetProjectAsync(id);
+            project = projectResult.Value;
+            error = projectResult.Error;
+            if (project is not null)
+            {
+                var proposalResult = await Api.ListProposalsAsync(id);
+                proposals = proposalResult.Value;
+                proposalError = proposalResult.Error;
+            }
+        }
+        loading = false;
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "pending" => "Pendiente",
+        "accepted" => "Aceptada",
+        "rejected" => "Rechazada",
+        _ => "Estado desconocido"
+    };
+}

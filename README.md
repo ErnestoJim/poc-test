@@ -55,6 +55,24 @@ La API escucha por defecto en `http://localhost:5194`. La base de datos SQLite
 se crea de forma persistente en `src/SpecFlow.Api/specflow.db` y está ignorada
 por Git.
 
+### Interfaz web
+
+Abre dos terminales desde la raíz del repositorio. En la primera, inicia la API
+con el comando anterior. En la segunda, ejecuta:
+
+```bash
+dotnet run --project src/SpecFlow.Web
+```
+
+Abre `http://localhost:5195` en el navegador. La página inicial muestra los
+proyectos y permite crear uno incluso con la base vacía. Desde el detalle del
+proyecto puedes crear y consultar propuestas.
+
+La web llama a la API desde su servidor. Para usar otra dirección, configura
+`SpecFlowApi__BaseUrl` en el proceso web; en desarrollo vale por defecto
+`http://localhost:5194`. Si la API no está disponible, la interfaz muestra un
+error y permite repetir las consultas.
+
 Endpoints:
 
 - `POST /api/projects`

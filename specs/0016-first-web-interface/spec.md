@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 14 de octubre de 2026.
+Implementada y verificada el 14 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -197,4 +197,23 @@ volver al listado de proyectos.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlow.Web` implementa las cinco vistas, navegación contextual, creación
+  desde una base vacía, presentación de estados y errores, y cliente HTTP para
+  las seis operaciones públicas previstas. El README documenta el arranque de
+  API y web en puertos distintos.
+- Cinco pruebas del cliente HTTP cubren las seis operaciones, JSON, errores por
+  campo, conflicto, recurso inexistente y pérdida de conexión.
+- Prueba manual en navegador con API real y SQLite temporal: listado vacío,
+  validación de formulario, creación de proyecto y propuesta, retorno a los
+  listados, conflicto por nombre duplicado, visualización de propuesta aceptada,
+  aviso sin API y recuperación mediante «Reintentar».
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, sin warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 456 pruebas correctas (127 de dominio,
+  324 de integración de API y 5 del cliente web). Una ejecución intermedia dio
+  un fallo intermitente en la prueba de concurrencia
+  `ConcurrentFollowUps_CanShareVerifiedSource` de la 0015; pasó de forma
+  aislada y en la repetición de la solución completa.
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore`: correcto.
+- `dotnet ef migrations has-pending-model-changes --project
+  src/SpecFlow.Infrastructure --startup-project src/SpecFlow.Api --no-build`:
+  sin cambios pendientes del modelo. No se modificó OpenAPI ni el esquema.

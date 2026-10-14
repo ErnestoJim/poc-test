@@ -1,0 +1,68 @@
+@page "/projects"
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+
+<PageTitle>Proyectos · SpecFlow</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Espacio de trabajo</p>
+        <h1>Proyectos</h1>
+        <p class="lead">El punto de partida para seguir propuestas y especificaciones.</p>
+    </div>
+    <a class="button primary" href="/projects/new">Nuevo proyecto</a>
+</div>
+
+@if (loading)
+{
+    <p class="notice">Cargando proyectos…</p>
+}
+else if (error is not null)
+{
+    <div class="notice error" role="alert">
+        <p>@error.Message</p>
+        <button class="button subtle" @onclick="LoadAsync">Reintentar</button>
+    </div>
+}
+else if (projects is { Count: 0 })
+{
+    <div class="empty-state">
+        <span class="empty-icon">◇</span>
+        <h2>Todavía no hay proyectos</h2>
+        <p>Crea el primero para empezar a registrar propuestas.</p>
+        <a class="button primary" href="/projects/new">Crear proyecto</a>
+    </div>
+}
+else if (projects is not null)
+{
+    <div class="list-heading"><span>@projects.Count proyectos</span><span>Más recientes primero</span></div>
+    <div class="card-grid">
+        @foreach (var project in projects)
+        {
+            <a class="project-card" href="@($"/projects/{project.Id}")">
+                <span class="card-marker">P</span>
+                <h2>@project.Name</h2>
+                <p>@(project.Description ?? "Sin descripción")</p>
+                <span class="card-foot">Creado el @project.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy") <span aria-hidden="true">→</span></span>
+            </a>
+        }
+    </div>
+}
+
+@code {
+    private List<ProjectDto>? projects;
+    private ApiError? error;
+    private bool loading = true;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        var result = await Api.ListProjectsAsync();
+        projects = result.Value;
+        error = result.Error;
+        loading = false;
+    }
+}
