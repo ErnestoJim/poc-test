@@ -218,7 +218,7 @@ public sealed class SpecificationTests
     {
         var specification = CreateImplementedSpecification();
 
-        specification.Verify(CreatedAtUtc.AddHours(3).AddTicks(1_234));
+        specification.Verify(true, CreatedAtUtc.AddHours(3).AddTicks(1_234));
 
         Assert.Equal(SpecificationStatus.Verified, specification.Status);
         Assert.Equal(CreatedAtUtc.AddHours(1), specification.ApprovedAtUtc);
@@ -229,12 +229,25 @@ public sealed class SpecificationTests
     }
 
     [Fact]
+    public void Verify_WithUnpassedCriterion_ThrowsAndPreservesImplementation()
+    {
+        var specification = CreateImplementedSpecification();
+
+        Assert.Throws<SpecificationVerificationIncompleteException>(
+            () => specification.Verify(false, CreatedAtUtc.AddHours(3)));
+
+        Assert.Equal(SpecificationStatus.Implemented, specification.Status);
+        Assert.Null(specification.VerifiedAtUtc);
+        Assert.Equal(2, specification.Version);
+    }
+
+    [Fact]
     public void Verify_BeforeImplementation_ThrowsAndPreservesStatus()
     {
         var specification = CreateApprovedSpecification();
 
         var exception = Assert.Throws<SpecificationTransitionException>(
-            () => specification.Verify(CreatedAtUtc.AddHours(2)));
+            () => specification.Verify(true, CreatedAtUtc.AddHours(2)));
 
         Assert.Equal(SpecificationStatus.Approved, exception.CurrentStatus);
         Assert.Equal(SpecificationStatus.Verified, exception.TargetStatus);

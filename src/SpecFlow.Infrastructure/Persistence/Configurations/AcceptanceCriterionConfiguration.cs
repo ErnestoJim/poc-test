@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SpecFlow.Domain.AcceptanceCriteria;
 using SpecFlow.Domain.Specifications;
 
@@ -10,6 +11,12 @@ internal sealed class AcceptanceCriterionConfiguration
 {
     public void Configure(EntityTypeBuilder<AcceptanceCriterion> builder)
     {
+        var nullableTimestampConverter = new ValueConverter<DateTimeOffset?, long?>(
+            value => value.HasValue ? value.Value.ToUnixTimeMilliseconds() : null,
+            value => value.HasValue
+                ? DateTimeOffset.FromUnixTimeMilliseconds(value.Value)
+                : null);
+
         builder.ToTable(
             "AcceptanceCriteria",
             table => table.HasCheckConstraint(
@@ -51,6 +58,22 @@ internal sealed class AcceptanceCriterionConfiguration
             .IsRequired();
 
         builder.Property(criterion => criterion.Version)
+            .IsConcurrencyToken()
+            .IsRequired();
+
+        builder.Property(criterion => criterion.VerificationStatus)
+            .HasConversion<string>()
+            .HasMaxLength(10)
+            .HasDefaultValue(AcceptanceCriterionVerificationStatus.Unverified)
+            .IsRequired();
+
+        builder.Property(criterion => criterion.VerificationEvidence)
+            .HasMaxLength(AcceptanceCriterion.MaxVerificationEvidenceLength);
+
+        builder.Property(criterion => criterion.CheckedAtUtc)
+            .HasConversion(nullableTimestampConverter);
+
+        builder.Property(criterion => criterion.VerificationVersion)
             .IsConcurrencyToken()
             .IsRequired();
 

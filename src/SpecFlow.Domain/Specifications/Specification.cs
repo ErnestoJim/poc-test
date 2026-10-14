@@ -138,9 +138,14 @@ public sealed class Specification
         Version++;
     }
 
-    public void Verify(DateTimeOffset verifiedAtUtc)
+    public void Verify(bool allAcceptanceCriteriaPassed, DateTimeOffset verifiedAtUtc)
     {
         EnsureTransition(SpecificationStatus.Implemented, SpecificationStatus.Verified);
+
+        if (!allAcceptanceCriteriaPassed)
+        {
+            throw new SpecificationVerificationIncompleteException();
+        }
 
         var normalizedTimestamp = NormalizeTimestamp(verifiedAtUtc);
         Status = SpecificationStatus.Verified;

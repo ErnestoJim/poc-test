@@ -77,6 +77,8 @@ Endpoints:
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
 - `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/order`
 - `DELETE /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}`
+- `GET /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}/verification`
+- `PUT /api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}/verification`
 - `POST /api/projects/{projectId}/proposals/{proposalId}/specification/tasks`
 - `GET /api/projects/{projectId}/proposals/{proposalId}/specification/tasks`
 - `GET /api/projects/{projectId}/proposals/{proposalId}/specification/tasks/{taskId}`
@@ -209,8 +211,12 @@ curl --request PUT \
 Las especificaciones comienzan como `draft`. Aprobar exige al menos un criterio,
 una tarea y que todos los criterios estén vinculados con alguna tarea. La
 aprobación congela contenido y planificación; entonces se pueden ejecutar las
-tareas. Cuando todas terminan, la especificación puede declararse implementada
-y después verificarse explícitamente:
+tareas. Cuando todas terminan, la especificación puede declararse implementada.
+Entonces se registra el resultado de cada criterio como `passed`, `failed` o
+`unverified`, con evidencia Markdown opcional para los dos primeros. El resultado
+tiene un ETag propio y puede corregirse mientras la especificación está
+`implemented`. La verificación final exige que todos los criterios estén en
+`passed`, aunque no tengan evidencia, y sigue siendo explícita:
 
 ```bash
 curl --request POST \
@@ -221,13 +227,24 @@ curl --request POST \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented \
   --header 'If-Match: {updatedSpecificationEtag}'
 
+curl --include \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}/verification
+
+curl --request PUT \
+  http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria/{criterionId}/verification \
+  --header 'Content-Type: application/json' \
+  --header 'If-Match: {verificationEtag}' \
+  --data '{"status":"passed","evidence":null}'
+
 curl --request POST \
   http://localhost:5194/api/projects/{projectId}/proposals/{proposalId}/specification/verify \
-  --header 'If-Match: {implementedSpecificationEtag}'
+  --header 'If-Match: {currentSpecificationEtag}'
 ```
 
 El ETag de una especificación representa el plan completo y cambia cuando se
-modifican su contenido, criterios, tareas, estados de tareas o trazabilidad.
+modifican su contenido, criterios, tareas, estados de tareas, trazabilidad o
+evaluaciones. Las especificaciones verificadas antes de incorporar evaluaciones
+conservan su estado sin resultados ni evidencias históricas inventadas.
 
 Cada proyecto también puede mantener un registro cronológico de decisiones
 técnicas. Cada decisión contiene un título y un documento Markdown flexible; los

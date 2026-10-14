@@ -153,6 +153,64 @@ public sealed class AcceptanceCriterionTests
         Assert.Equal(0, criterion.Version);
     }
 
+    [Fact]
+    public void Verification_ChangesIndependentlyOfCriterionContent()
+    {
+        var criterion = CreateCriterion();
+
+        Assert.Equal(AcceptanceCriterionVerificationStatus.Unverified,
+            criterion.VerificationStatus);
+        Assert.Null(criterion.VerificationEvidence);
+        Assert.Null(criterion.CheckedAtUtc);
+        Assert.True(criterion.SetVerification(
+            AcceptanceCriterionVerificationStatus.Passed,
+            null,
+            CreatedAtUtc.AddHours(1).AddTicks(1_234)));
+
+        Assert.Equal(AcceptanceCriterionVerificationStatus.Passed,
+            criterion.VerificationStatus);
+        Assert.Null(criterion.VerificationEvidence);
+        Assert.Equal(CreatedAtUtc.AddHours(1), criterion.CheckedAtUtc);
+        Assert.Equal(1, criterion.VerificationVersion);
+        Assert.Equal(0, criterion.Version);
+        Assert.Equal(CreatedAtUtc, criterion.UpdatedAtUtc);
+
+        Assert.False(criterion.SetVerification(
+            AcceptanceCriterionVerificationStatus.Passed,
+            null,
+            CreatedAtUtc.AddHours(2)));
+        Assert.Equal(CreatedAtUtc.AddHours(1), criterion.CheckedAtUtc);
+
+        Assert.True(criterion.SetVerification(
+            AcceptanceCriterionVerificationStatus.Unverified,
+            null,
+            CreatedAtUtc.AddHours(3)));
+        Assert.Null(criterion.CheckedAtUtc);
+        Assert.Equal(2, criterion.VerificationVersion);
+    }
+
+    [Theory]
+    [InlineData(AcceptanceCriterionVerificationStatus.Unverified, "evidence")]
+    [InlineData(AcceptanceCriterionVerificationStatus.Passed, " ")]
+    [InlineData(AcceptanceCriterionVerificationStatus.Failed, "")]
+    public void ValidateVerification_RejectsIncompatibleEvidence(
+        AcceptanceCriterionVerificationStatus status,
+        string evidence)
+    {
+        Assert.Contains("evidence", AcceptanceCriterion.ValidateVerification(status, evidence));
+    }
+
+    [Fact]
+    public void ValidateVerification_AllowsMissingEvidenceForBothResults()
+    {
+        Assert.Empty(AcceptanceCriterion.ValidateVerification(
+            AcceptanceCriterionVerificationStatus.Passed,
+            null));
+        Assert.Empty(AcceptanceCriterion.ValidateVerification(
+            AcceptanceCriterionVerificationStatus.Failed,
+            null));
+    }
+
     private static AcceptanceCriterion CreateCriterion() =>
         AcceptanceCriterion.Create(
             Guid.NewGuid(),

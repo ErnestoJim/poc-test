@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SpecFlow.Api.Contracts.Specifications;
+using SpecFlow.Domain.AcceptanceCriteria;
 using SpecFlow.Domain.FeatureProposals;
 using SpecFlow.Domain.ImplementationTasks;
 using SpecFlow.Domain.Specifications;
@@ -350,10 +351,16 @@ public static class SpecificationEndpoints
             timeProvider,
             httpContext,
             SpecificationStatus.Verified,
-            (specification, timestamp) =>
+            async (specification, timestamp) =>
             {
-                specification.Verify(timestamp);
-                return Task.CompletedTask;
+                var allAcceptanceCriteriaPassed = !await dbContext.AcceptanceCriteria
+                    .AnyAsync(
+                        criterion =>
+                            criterion.SpecificationId == specification.Id &&
+                            criterion.VerificationStatus !=
+                            AcceptanceCriterionVerificationStatus.Passed,
+                        cancellationToken);
+                specification.Verify(allAcceptanceCriteriaPassed, timestamp);
             },
             cancellationToken);
 
@@ -412,6 +419,10 @@ public static class SpecificationEndpoints
         catch (SpecificationImplementationIncompleteException)
         {
             return SpecificationImplementationIncompleteProblem();
+        }
+        catch (SpecificationVerificationIncompleteException)
+        {
+            return SpecificationVerificationIncompleteProblem();
         }
         catch (SpecificationTransitionException)
         {
@@ -498,6 +509,12 @@ public static class SpecificationEndpoints
             statusCode: StatusCodes.Status409Conflict,
             title: "Specification implementation is incomplete",
             detail: "All implementation tasks must be completed and criterion coverage must remain complete.");
+
+    private static IResult SpecificationVerificationIncompleteProblem() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Specification verification incomplete",
+            detail: "All acceptance criteria must pass before verifying the specification.");
 
     private static IResult SpecificationTransitionConflictProblem(
         SpecificationStatus targetStatus) =>

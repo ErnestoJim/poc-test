@@ -131,6 +131,10 @@ public sealed class SpecificationLifecycleTests
         Assert.Null(implemented.VerifiedAtUtc);
 
         factory.TimeProvider.Advance(TimeSpan.FromHours(1));
+        await AcceptanceCriterionVerificationTestData.PassAllCriteriaAsync(
+            client,
+            context.Project.Id,
+            context.Proposal.Id);
         using var verifiedResponse = await PostSpecificationTransitionAsync("verify");
         Assert.Equal(HttpStatusCode.OK, verifiedResponse.StatusCode);
         var verified = await verifiedResponse.Content

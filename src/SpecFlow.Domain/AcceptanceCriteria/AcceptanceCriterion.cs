@@ -6,6 +6,7 @@ namespace SpecFlow.Domain.AcceptanceCriteria;
 public sealed class AcceptanceCriterion
 {
     public const int MaxContentLength = 10_000;
+    public const int MaxVerificationEvidenceLength = 10_000;
     public const int ContentHashLength = 64;
 
     private AcceptanceCriterion()
@@ -43,6 +44,14 @@ public sealed class AcceptanceCriterion
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     public int Version { get; private set; }
+
+    public AcceptanceCriterionVerificationStatus VerificationStatus { get; private set; }
+
+    public string? VerificationEvidence { get; private set; }
+
+    public DateTimeOffset? CheckedAtUtc { get; private set; }
+
+    public int VerificationVersion { get; private set; }
 
     public static AcceptanceCriterion Create(
         Guid id,
@@ -130,6 +139,59 @@ public sealed class AcceptanceCriterion
         UpdatedAtUtc = NormalizeTimestamp(updatedAtUtc);
         Version++;
         return true;
+    }
+
+    public bool SetVerification(
+        AcceptanceCriterionVerificationStatus status,
+        string? evidence,
+        DateTimeOffset checkedAtUtc)
+    {
+        var errors = ValidateVerification(status, evidence);
+        if (errors.Count > 0)
+        {
+            throw new ArgumentException("The acceptance criterion verification is invalid.",
+                nameof(evidence));
+        }
+
+        if (VerificationStatus == status &&
+            string.Equals(VerificationEvidence, evidence, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        VerificationStatus = status;
+        VerificationEvidence = evidence;
+        CheckedAtUtc = status == AcceptanceCriterionVerificationStatus.Unverified
+            ? null
+            : NormalizeTimestamp(checkedAtUtc);
+        VerificationVersion++;
+        return true;
+    }
+
+    public static Dictionary<string, string[]> ValidateVerification(
+        AcceptanceCriterionVerificationStatus status,
+        string? evidence)
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        if (!Enum.IsDefined(status))
+        {
+            errors["status"] = ["The verification status is invalid."];
+        }
+        else if (status == AcceptanceCriterionVerificationStatus.Unverified && evidence is not null)
+        {
+            errors["evidence"] = ["An unverified criterion cannot have evidence."];
+        }
+        else if (evidence is not null && string.IsNullOrWhiteSpace(evidence))
+        {
+            errors["evidence"] = ["Verification evidence cannot be blank."];
+        }
+        else if (evidence?.Length > MaxVerificationEvidenceLength)
+        {
+            errors["evidence"] =
+                [$"Verification evidence cannot exceed {MaxVerificationEvidenceLength} characters."];
+        }
+
+        return errors;
     }
 
     public static Dictionary<string, string[]> ValidateContent(string? content)

@@ -24,6 +24,7 @@ app.MapProjectEndpoints();
 app.MapFeatureProposalEndpoints();
 app.MapSpecificationEndpoints();
 app.MapAcceptanceCriterionEndpoints();
+app.MapAcceptanceCriterionVerificationEndpoints();
 app.MapImplementationTaskEndpoints();
 app.MapTechnicalDecisionEndpoints();
 app.MapTraceabilityEndpoints();

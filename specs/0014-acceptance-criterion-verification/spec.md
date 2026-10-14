@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aprobada para implementación el 14 de octubre de 2026.
+Implementada y verificada el 14 de octubre de 2026, tras su aprobación para
+implementación el mismo día.
 
 ## Base documental
 
@@ -225,4 +226,8 @@ Nueva migración: `AddAcceptanceCriterionVerification`.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- Compilación sin warnings ni errores.
+- 125 pruebas de dominio superadas.
+- 314 pruebas de integración superadas.
+- Formato verificado sin cambios.
+- Modelo de EF Core sin migraciones pendientes.

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using SpecFlow.Api.Contracts.Specifications;
+using SpecFlow.Api.IntegrationTests.AcceptanceCriteria;
 using SpecFlow.Api.IntegrationTests.ImplementationTasks;
 using SpecFlow.Api.IntegrationTests.Infrastructure;
 
@@ -125,6 +126,10 @@ public sealed class SpecificationPersistenceTests
                         route,
                         $"{route}/mark-implemented");
                 implementedResponse.EnsureSuccessStatusCode();
+                await AcceptanceCriterionVerificationTestData.PassAllCriteriaAsync(
+                    firstClient,
+                    projectId,
+                    proposalId);
                 using var verifiedResponse = await HttpPreconditionTestData
                     .PostWithCurrentEntityTagAsync(
                         firstClient,
