@@ -73,8 +73,11 @@ conflicto o se perdió la conexión. Desde una propuesta aceptada puedes abrir s
 especificación, crearla con contenido Markdown si aún no existe y consultar su
 estado y contenido. Mientras está en borrador puedes editar su contenido; si
 otra persona la cambió entretanto, la web muestra la versión guardada junto a tu
-texto y te deja decidir si guardas el tuyo o lo descartas. El resto del ciclo de
-vida de especificaciones sigue gestionándose por la API.
+texto y te deja decidir si guardas el tuyo o lo descartas. Debajo del contenido
+se listan sus criterios de aceptación; en borrador puedes añadirlos, editarlos,
+eliminarlos tras confirmación y moverlos con «Subir» y «Bajar». Las tareas, sus
+vínculos y el resto del ciclo de vida de especificaciones siguen gestionándose
+por la API.
 
 La web llama a la API desde su servidor. Para usar otra dirección, configura
 `SpecFlowApi__BaseUrl` en el proceso web; en desarrollo vale por defecto

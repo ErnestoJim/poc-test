@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 15 de octubre de 2026.
+Implementada y verificada el 15 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -235,4 +235,57 @@ Son cambios internos de `SpecFlow.Web`; no afectan a la API.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlowApiClient` añade listar, añadir, consultar, editar, eliminar y
+  reordenar criterios, con `If-Match` literal en las modificaciones y lectura
+  del ETag en respuestas `204`. La sección vive en el componente
+  `AcceptanceCriteriaSection`, que la vista de especificación integra con una
+  sola edición activa y relectura de la especificación tras cada cambio. No
+  cambian la API, OpenAPI, el dominio ni el esquema.
+- Siete pruebas nuevas del cliente HTTP: rutas, cuerpos con texto exacto,
+  `If-Match` literal, ETags de recurso y de listado, `204` sin cuerpo,
+  clasificación de `400` (`content` y `criterionIds`), `404`, `409`, `412` y
+  `428`, y fallos de conexión de cada operación.
+- Navegador con API real y SQLite temporal:
+  - Listado vacío con el aviso de aprobación. Añadir tres criterios; la API
+    conservó espacios y saltos de línea exactos.
+  - Solo espacios y 10.001 caracteres: error junto al campo con
+    `aria-invalid="true"` y `aria-describedby` hacia ayuda y error. Duplicado al
+    añadir y al editar: mensaje de duplicado junto al campo y texto conservado.
+  - Editar: «Guardar» deshabilitado sin cambios, «Cancelar» con cambios pide
+    confirmación y «Seguir editando» conserva el texto. Durante la edición, el
+    resto de acciones, el formulario de alta y «Editar» del contenido quedan
+    deshabilitados. Con texto en el campo de alta, «Editar» del contenido
+    también.
+  - «Subir» y «Bajar» deshabilitados en los extremos. Bajar el primero, subir el
+    tercero y eliminar el primero dejaron el orden esperado en la API.
+  - Editar el contenido de la especificación tras cinco cambios de criterios
+    guardó a la primera; el registro de la API no contiene ningún `412`.
+  - `412` al editar por un cambio hecho por la API: versión guardada y texto
+    local por separado; «Guardar mi versión» guardó y «Descartar mi versión»
+    volvió al listado.
+  - Eliminar un criterio cambiado por la API tras abrir la confirmación: no se
+    eliminó y se mostró el aviso con el listado actual.
+  - Reordenar con un criterio añadido por la API: `412`, orden sin aplicar y
+    listado actualizado con el criterio nuevo.
+  - Editar un criterio eliminado por la API: aviso de que ya no existe y
+    listado actual.
+  - Aprobación por la API durante la edición de un criterio: `409`, estado
+    «Aprobada» en la vista, sección en modo de lectura y texto local visible.
+    Al cargar una especificación aprobada no hay controles de modificación.
+  - API detenida al añadir: bloqueo con el texto visible y deshabilitado; la
+    consulta sin API mantuvo el bloqueo. Tras reiniciar: «no se añadió» con el
+    texto en el campo, y «se añadió correctamente» cuando la API ya tenía ese
+    texto.
+- Ajustes durante la verificación: «Descartar» limpia el aviso de conflicto y
+  el formulario de alta permanece visible y deshabilitado mientras hay una
+  consulta pendiente.
+- No se verificó en navegador el `404` de la especificación durante un cambio,
+  porque la API no permite eliminar propuestas ni especificaciones; esa rama
+  entrega el texto local al error contextual de la vista (revisión de código).
+  Tampoco se comprobó el diseño a ancho de móvil.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 501 pruebas correctas (127 de dominio,
+  339 de integración y 35 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

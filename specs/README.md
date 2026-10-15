@@ -82,7 +82,7 @@ implementación.
 | [0020](0020-follow-up-concurrency-test-stability/spec.md) | Estabilidad de la prueba de continuaciones concurrentes | Implementada |
 | [0021](0021-web-specification-edit/spec.md) | Editar especificaciones desde la interfaz web | Implementada |
 | [0022](0022-web-form-field-errors/spec.md) | Errores de campo accesibles en los formularios web | Implementada |
-| [0023](0023-web-acceptance-criteria/spec.md) | Gestionar criterios de aceptación desde la interfaz web | Aprobada para implementación |
+| [0023](0023-web-acceptance-criteria/spec.md) | Gestionar criterios de aceptación desde la interfaz web | Implementada |
 
 ## Crear la siguiente spec
 

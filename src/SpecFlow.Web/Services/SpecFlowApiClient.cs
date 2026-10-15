@@ -105,6 +105,81 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             cancellationToken,
             entityTag);
 
+    public Task<ApiResult<List<AcceptanceCriterionDto>>> ListAcceptanceCriteriaAsync(
+        Guid projectId,
+        Guid proposalId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<List<AcceptanceCriterionDto>>(
+            HttpMethod.Get,
+            AcceptanceCriteriaPath(projectId, proposalId),
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<AcceptanceCriterionDto>> CreateAcceptanceCriterionAsync(
+        Guid projectId,
+        Guid proposalId,
+        string? content,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AcceptanceCriterionDto>(
+            HttpMethod.Post,
+            AcceptanceCriteriaPath(projectId, proposalId),
+            new { content },
+            cancellationToken);
+
+    public Task<ApiResult<AcceptanceCriterionDto>> GetAcceptanceCriterionAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid criterionId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AcceptanceCriterionDto>(
+            HttpMethod.Get,
+            $"{AcceptanceCriteriaPath(projectId, proposalId)}/{criterionId}",
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<AcceptanceCriterionDto>> UpdateAcceptanceCriterionAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid criterionId,
+        string? content,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AcceptanceCriterionDto>(
+            HttpMethod.Put,
+            $"{AcceptanceCriteriaPath(projectId, proposalId)}/{criterionId}",
+            new { content },
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<bool>> DeleteAcceptanceCriterionAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid criterionId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<bool>(
+            HttpMethod.Delete,
+            $"{AcceptanceCriteriaPath(projectId, proposalId)}/{criterionId}",
+            null,
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<bool>> ReorderAcceptanceCriteriaAsync(
+        Guid projectId,
+        Guid proposalId,
+        IReadOnlyList<Guid> criterionIds,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<bool>(
+            HttpMethod.Put,
+            $"{AcceptanceCriteriaPath(projectId, proposalId)}/order",
+            new { criterionIds },
+            cancellationToken,
+            entityTag);
+
+    private static string AcceptanceCriteriaPath(Guid projectId, Guid proposalId) =>
+        $"/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria";
+
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpMethod method,
         string path,
@@ -127,6 +202,12 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
         try
         {
             using var response = await httpClient.SendAsync(request, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NoContent && typeof(T) == typeof(bool))
+            {
+                // Operations without a response body report success as `true`.
+                return new ApiResult<T>((T)(object)true, null, response.Headers.ETag?.ToString());
+            }
+
             if (response.IsSuccessStatusCode)
             {
                 var value = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);

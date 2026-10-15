@@ -293,6 +293,113 @@ public sealed class SpecFlowApiClientTests
         Assert.NotEmpty(offline.Error!.Message);
     }
 
+    [Fact]
+    public async Task AcceptanceCriterionOperationsUseSpecificationRoutesAndEntityTags()
+    {
+        const string text = "  Dado un criterio\r\nentonces se conserva  ";
+        var first = new AcceptanceCriterionDto(Guid.NewGuid(), Guid.NewGuid(), text, 1, CreatedAt, CreatedAt);
+        var second = first with { Id = Guid.NewGuid(), Content = "Otro", Position = 2 };
+        var basePath = $"/api/projects/{ProjectId}/proposals/{ProposalId}/specification/acceptance-criteria";
+        var handler = new RecordingHandler(
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new[] { first, second }) }, "\"list-1\""),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.Created) { Content = JsonContent.Create(first) }, "\"item-1\""),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(first) }, "\"item-1\""),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(first) }, "\"item-2\""),
+            new HttpResponseMessage(HttpStatusCode.NoContent),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.NoContent), "\"list-2\""));
+        var client = CreateClient(handler);
+
+        var listed = await client.ListAcceptanceCriteriaAsync(ProjectId, ProposalId);
+        var created = await client.CreateAcceptanceCriterionAsync(ProjectId, ProposalId, text);
+        var fetched = await client.GetAcceptanceCriterionAsync(ProjectId, ProposalId, first.Id);
+        var updated = await client.UpdateAcceptanceCriterionAsync(ProjectId, ProposalId, first.Id, text, "\"item-1\"");
+        var deleted = await client.DeleteAcceptanceCriterionAsync(ProjectId, ProposalId, first.Id, "\"item-2\"");
+        var reordered = await client.ReorderAcceptanceCriteriaAsync(ProjectId, ProposalId, [second.Id, first.Id], "\"list-1\"");
+
+        Assert.Equal([first.Id, second.Id], listed.Value!.Select(criterion => criterion.Id));
+        Assert.Equal("\"list-1\"", listed.EntityTag);
+        Assert.Equal(text, created.Value?.Content);
+        Assert.Equal("\"item-1\"", fetched.EntityTag);
+        Assert.Equal("\"item-2\"", updated.EntityTag);
+        Assert.True(deleted.IsSuccess);
+        Assert.True(deleted.Value);
+        Assert.True(reordered.Value);
+        Assert.Equal("\"list-2\"", reordered.EntityTag);
+        Assert.Equal(
+            [
+                $"GET {basePath}",
+                $"POST {basePath}",
+                $"GET {basePath}/{first.Id}",
+                $"PUT {basePath}/{first.Id}",
+                $"DELETE {basePath}/{first.Id}",
+                $"PUT {basePath}/order"
+            ],
+            handler.Requests.Select(r => r.Route));
+        Assert.Equal([null, null, null, "\"item-1\"", "\"item-2\"", "\"list-1\""], handler.Requests.Select(r => r.IfMatch));
+        Assert.Equal(text, handler.Requests[1].Body!.Value.GetProperty("content").GetString());
+        Assert.Equal(text, handler.Requests[3].Body!.Value.GetProperty("content").GetString());
+        Assert.Null(handler.Requests[4].Body);
+        Assert.Equal(
+            [second.Id.ToString(), first.Id.ToString()],
+            handler.Requests[5].Body!.Value.GetProperty("criterionIds").EnumerateArray().Select(id => id.GetString()));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, 400, true)]
+    [InlineData(HttpStatusCode.NotFound, 404, false)]
+    [InlineData(HttpStatusCode.Conflict, 409, false)]
+    [InlineData(HttpStatusCode.PreconditionFailed, 412, false)]
+    [InlineData((HttpStatusCode)428, 428, false)]
+    public async Task AcceptanceCriterionModificationErrorsKeepStatusAndField(HttpStatusCode status, int expectedStatus, bool hasField)
+    {
+        HttpResponseMessage Error(string field) => new(status)
+        {
+            Content = JsonContent.Create(new
+            {
+                title = "Error",
+                errors = hasField ? new Dictionary<string, string[]> { [field] = ["Invalid"] } : null
+            })
+        };
+        var handler = new RecordingHandler(Error("content"), Error("content"), Error("content"), Error("criterionIds"));
+        var client = CreateClient(handler);
+        var criterionId = Guid.NewGuid();
+
+        var created = await client.CreateAcceptanceCriterionAsync(ProjectId, ProposalId, "");
+        var updated = await client.UpdateAcceptanceCriterionAsync(ProjectId, ProposalId, criterionId, "", "\"v1\"");
+        var deleted = await client.DeleteAcceptanceCriterionAsync(ProjectId, ProposalId, criterionId, "\"v1\"");
+        var reordered = await client.ReorderAcceptanceCriteriaAsync(ProjectId, ProposalId, [criterionId], "\"v1\"");
+
+        Assert.All([created.Error, updated.Error, deleted.Error, reordered.Error], error =>
+        {
+            Assert.Equal(expectedStatus, error?.StatusCode);
+            Assert.NotEmpty(error!.Message);
+        });
+        Assert.Equal(hasField, created.Error!.HasField("content"));
+        Assert.Equal(hasField, updated.Error!.HasField("content"));
+        Assert.Equal(hasField, reordered.Error!.HasField("criterionIds"));
+        Assert.False(deleted.Value);
+        Assert.Null(reordered.EntityTag);
+    }
+
+    [Fact]
+    public async Task AcceptanceCriterionNetworkFailuresHaveUnknownStatus()
+    {
+        var client = CreateClient(new FailingHandler());
+        var criterionId = Guid.NewGuid();
+
+        var listed = await client.ListAcceptanceCriteriaAsync(ProjectId, ProposalId);
+        var created = await client.CreateAcceptanceCriterionAsync(ProjectId, ProposalId, "Criterio");
+        var updated = await client.UpdateAcceptanceCriterionAsync(ProjectId, ProposalId, criterionId, "Criterio", "\"v1\"");
+        var deleted = await client.DeleteAcceptanceCriterionAsync(ProjectId, ProposalId, criterionId, "\"v1\"");
+        var reordered = await client.ReorderAcceptanceCriteriaAsync(ProjectId, ProposalId, [criterionId], "\"v1\"");
+
+        Assert.All([listed.Error, created.Error, updated.Error, deleted.Error, reordered.Error], error =>
+        {
+            Assert.NotNull(error);
+            Assert.Null(error.StatusCode);
+        });
+    }
+
     private static HttpResponseMessage WithEntityTag(HttpResponseMessage response, string entityTag)
     {
         response.Headers.ETag = System.Net.Http.Headers.EntityTagHeaderValue.Parse(entityTag);

@@ -178,6 +178,12 @@ else if (proposal is not null)
                     </dl>
                 </aside>
             </div>
+
+            <AcceptanceCriteriaSection ProjectId="proposal.ProjectId" ProposalId="proposal.Id" Specification="specification"
+                                       Locked="@(editing || saving || refreshing || pendingRecovery is not null || recovery != RecoveryKind.None)"
+                                       OnActiveChanged="active => criteriaActive = active"
+                                       ReloadSpecification="ReloadSpecificationAsync"
+                                       OnContextLost="HandleCriteriaContextLost" />
         }
         else if (missingSpecification && recovery == RecoveryKind.None)
         {
@@ -253,8 +259,10 @@ else if (proposal is not null)
     private ApiError? editRefreshError;
     private EditRecovery? pendingRecovery;
 
+    private bool criteriaActive;
+
     private bool CanEdit => specification is { Status: "draft" } && entityTag is not null &&
-        !editing && pendingRecovery is null && recovery == RecoveryKind.None;
+        !editing && !criteriaActive && pendingRecovery is null && recovery == RecoveryKind.None;
     private bool EditLocked => saving || refreshing || pendingRecovery is not null;
     private bool HasEditChanges => !string.Equals(editContent, specification?.Content, StringComparison.Ordinal);
     private bool loading = true;
@@ -594,6 +602,26 @@ else if (proposal is not null)
         {
             refreshing = false;
         }
+    }
+
+    private async Task<ApiResult<SpecificationDto>> ReloadSpecificationAsync()
+    {
+        var result = proposal is null
+            ? new ApiResult<SpecificationDto>(null, new ApiError(null, "La propuesta no está disponible.", new HashSet<string>()))
+            : await Api.GetSpecificationAsync(proposal.ProjectId, proposal.Id);
+        if (result.Value is { } current)
+        {
+            specification = current;
+            entityTag = result.EntityTag;
+            StateHasChanged();
+        }
+        return result;
+    }
+
+    private void HandleCriteriaContextLost(AcceptanceCriteriaSection.ContextLost lost)
+    {
+        unsavedContent = lost.LocalText;
+        loadError = lost.Error;
     }
 
     private void HandleRefreshError(ApiError? error)

@@ -24,6 +24,14 @@ public sealed record SpecificationDto(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
+public sealed record AcceptanceCriterionDto(
+    Guid Id,
+    Guid SpecificationId,
+    string Content,
+    int Position,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
 public sealed record ApiError(int? StatusCode, string Message, IReadOnlySet<string> Fields)
 {
     public bool HasField(string name) => Fields.Contains(name);
