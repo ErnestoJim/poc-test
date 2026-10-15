@@ -14,20 +14,24 @@
     <form class="form-card" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
         <div class="field">
             <label for="project-name">Nombre <span class="required">*</span></label>
-            <input id="project-name" @bind="name" @bind:event="oninput" aria-invalid="@(error?.HasField("name") == true)" />
-            <small>Entre 1 y 100 caracteres.</small>
+            <input id="project-name" @bind="name" @bind:event="oninput"
+                   aria-invalid="@FieldValidation.AriaInvalid(error, "name")"
+                   aria-describedby="@FieldValidation.DescribedBy(error, "name", "project-name")" />
+            <small id="project-name-hint">Entre 1 y 100 caracteres.</small>
             @if (error?.HasField("name") == true)
             {
-                <span class="field-error">@(error.StatusCode == 409 ? "Ya existe un proyecto con ese nombre." : "Introduce un nombre válido de hasta 100 caracteres.")</span>
+                <span id="project-name-error" class="field-error">@(error.StatusCode == 409 ? "Ya existe un proyecto con ese nombre." : "Introduce un nombre válido de hasta 100 caracteres.")</span>
             }
         </div>
         <div class="field">
             <label for="project-description">Descripción <span class="optional">opcional</span></label>
-            <textarea id="project-description" @bind="description" @bind:event="oninput" rows="5" aria-invalid="@(error?.HasField("description") == true)"></textarea>
-            <small>Hasta 1.000 caracteres.</small>
+            <textarea id="project-description" @bind="description" @bind:event="oninput" rows="5"
+                      aria-invalid="@FieldValidation.AriaInvalid(error, "description")"
+                      aria-describedby="@FieldValidation.DescribedBy(error, "description", "project-description")"></textarea>
+            <small id="project-description-hint">Hasta 1.000 caracteres.</small>
             @if (error?.HasField("description") == true)
             {
-                <span class="field-error">La descripción no puede superar 1.000 caracteres.</span>
+                <span id="project-description-error" class="field-error">La descripción no puede superar 1.000 caracteres.</span>
             }
         </div>
         @if (error is not null && !(error.StatusCode == 409 && error.HasField("name")))

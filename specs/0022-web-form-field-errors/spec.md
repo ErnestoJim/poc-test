@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 15 de octubre de 2026.
+Implementada y verificada el 15 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -147,4 +147,32 @@ referencia el texto de ayuda.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- Nueva utilidad `SpecFlow.Web.Services.FieldValidation` con `AriaInvalid` y
+  `DescribedBy`. Los siete campos la usan y definen `<id>-hint` y `<id>-error`:
+  `project-name`, `project-description`, `proposal-title`,
+  `proposal-description`, `rejection-reason`, `specification-content` y
+  `specification-edit-content`. No quedan expresiones booleanas en
+  `aria-invalid`.
+- Cuatro pruebas unitarias nuevas (`FieldValidationTests`, seis casos): error
+  en el campo, error en otro campo, error general sin campos y ausencia de
+  error, para ambos métodos.
+- Navegador con API real y SQLite temporal, inspeccionando el DOM de cada uno
+  de los siete campos:
+  - Sin error: `aria-invalid="false"`, `aria-describedby` solo con la ayuda y
+    borde normal `rgb(203, 216, 205)`.
+  - Con el `400` de su campo: `aria-invalid="true"`, `aria-describedby` con
+    ayuda y error, todos los identificadores existentes y borde de error
+    `rgb(189, 100, 85)` (`#bd6455`), que antes no se aplicaba.
+  - Tras corregir: vuelta a `false`, sin referencia al error y borde normal.
+    En proyecto y propuesta se comprobó reenviando con un campo corregido y el
+    otro inválido, porque esos formularios limpian el error al reenviar. En
+    motivo de rechazo, crear y editar especificación, al escribir.
+  - Ningún elemento de la página con `aria-invalid=""`.
+- Recorridos sin cambios: creación de proyecto y propuesta desde la web y
+  rechazo con motivo, con navegación y estados como antes.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 494 pruebas correctas (127 de dominio,
+  339 de integración y 28 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

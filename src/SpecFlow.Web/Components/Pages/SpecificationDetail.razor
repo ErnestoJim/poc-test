@@ -104,11 +104,12 @@ else if (proposal is not null)
                             <label for="specification-edit-content">Contenido Markdown <span class="required">*</span></label>
                             <textarea id="specification-edit-content" class="markdown-editor" @bind="editContent" @bind:event="oninput"
                                       @bind:after="ClearEditContentError" rows="22" disabled="@EditLocked"
-                                      aria-invalid="@(editError?.HasField("content") == true ? "true" : "false")"></textarea>
-                            <small>Escribe hasta 100.000 caracteres. El texto se guardará tal como lo envíes.</small>
+                                      aria-invalid="@FieldValidation.AriaInvalid(editError, "content")"
+                                      aria-describedby="@FieldValidation.DescribedBy(editError, "content", "specification-edit-content")"></textarea>
+                            <small id="specification-edit-content-hint">Escribe hasta 100.000 caracteres. El texto se guardará tal como lo envíes.</small>
                             @if (editError?.HasField("content") == true)
                             {
-                                <span class="field-error">Introduce contenido Markdown válido de hasta 100.000 caracteres.</span>
+                                <span id="specification-edit-content-error" class="field-error">Introduce contenido Markdown válido de hasta 100.000 caracteres.</span>
                             }
                         </div>
                         @if (confirmDiscard)
@@ -191,11 +192,12 @@ else if (proposal is not null)
                     <label for="specification-content">Contenido Markdown <span class="required">*</span></label>
                     <textarea id="specification-content" class="markdown-editor" @bind="content" @bind:event="oninput"
                               @bind:after="ClearContentError" rows="18" disabled="@saving"
-                              aria-invalid="@(formError?.HasField("content") == true)"></textarea>
-                    <small>Escribe hasta 100.000 caracteres. El texto se guardará tal como lo envíes.</small>
+                              aria-invalid="@FieldValidation.AriaInvalid(formError, "content")"
+                              aria-describedby="@FieldValidation.DescribedBy(formError, "content", "specification-content")"></textarea>
+                    <small id="specification-content-hint">Escribe hasta 100.000 caracteres. El texto se guardará tal como lo envíes.</small>
                     @if (formError?.HasField("content") == true)
                     {
-                        <span class="field-error">Introduce contenido Markdown válido de hasta 100.000 caracteres.</span>
+                        <span id="specification-content-error" class="field-error">Introduce contenido Markdown válido de hasta 100.000 caracteres.</span>
                     }
                 </div>
                 @if (formError is not null && !formError.HasField("content"))

@@ -83,11 +83,13 @@ else if (proposal is not null)
                     <div class="field">
                         <label for="rejection-reason">Motivo <span class="required">*</span></label>
                         <textarea id="rejection-reason" @bind="rejectionReason" @bind:event="oninput" @bind:after="ClearReasonError" rows="4"
-                                  disabled="@submitting" aria-invalid="@(actionError?.HasField("reason") == true)"></textarea>
-                        <small>Explica la decisión en un máximo de 1.000 caracteres.</small>
+                                  disabled="@submitting"
+                                  aria-invalid="@FieldValidation.AriaInvalid(actionError, "reason")"
+                                  aria-describedby="@FieldValidation.DescribedBy(actionError, "reason", "rejection-reason")"></textarea>
+                        <small id="rejection-reason-hint">Explica la decisión en un máximo de 1.000 caracteres.</small>
                         @if (actionError?.HasField("reason") == true)
                         {
-                            <span class="field-error">Introduce un motivo de hasta 1.000 caracteres.</span>
+                            <span id="rejection-reason-error" class="field-error">Introduce un motivo de hasta 1.000 caracteres.</span>
                         }
                     </div>
                     @if (actionError is not null && !actionError.HasField("reason"))

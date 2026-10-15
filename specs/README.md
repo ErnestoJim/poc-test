@@ -81,7 +81,7 @@ implementación.
 | [0019](0019-malformed-request-bodies/spec.md) | Cuerpos de petición malformados | Implementada |
 | [0020](0020-follow-up-concurrency-test-stability/spec.md) | Estabilidad de la prueba de continuaciones concurrentes | Implementada |
 | [0021](0021-web-specification-edit/spec.md) | Editar especificaciones desde la interfaz web | Implementada |
-| [0022](0022-web-form-field-errors/spec.md) | Errores de campo accesibles en los formularios web | Aprobada para implementación |
+| [0022](0022-web-form-field-errors/spec.md) | Errores de campo accesibles en los formularios web | Implementada |
 
 ## Crear la siguiente spec
 

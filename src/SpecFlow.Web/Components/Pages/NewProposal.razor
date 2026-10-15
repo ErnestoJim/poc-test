@@ -31,20 +31,24 @@
         <form class="form-card" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
             <div class="field">
                 <label for="proposal-title">Título <span class="required">*</span></label>
-                <input id="proposal-title" @bind="title" @bind:event="oninput" aria-invalid="@(error?.HasField("title") == true)" />
-                <small>Entre 1 y 200 caracteres.</small>
+                <input id="proposal-title" @bind="title" @bind:event="oninput"
+                       aria-invalid="@FieldValidation.AriaInvalid(error, "title")"
+                       aria-describedby="@FieldValidation.DescribedBy(error, "title", "proposal-title")" />
+                <small id="proposal-title-hint">Entre 1 y 200 caracteres.</small>
                 @if (error?.HasField("title") == true)
                 {
-                    <span class="field-error">Introduce un título válido de hasta 200 caracteres.</span>
+                    <span id="proposal-title-error" class="field-error">Introduce un título válido de hasta 200 caracteres.</span>
                 }
             </div>
             <div class="field">
                 <label for="proposal-description">Descripción <span class="optional">opcional</span></label>
-                <textarea id="proposal-description" @bind="description" @bind:event="oninput" rows="6" aria-invalid="@(error?.HasField("description") == true)"></textarea>
-                <small>Hasta 4.000 caracteres.</small>
+                <textarea id="proposal-description" @bind="description" @bind:event="oninput" rows="6"
+                          aria-invalid="@FieldValidation.AriaInvalid(error, "description")"
+                          aria-describedby="@FieldValidation.DescribedBy(error, "description", "proposal-description")"></textarea>
+                <small id="proposal-description-hint">Hasta 4.000 caracteres.</small>
                 @if (error?.HasField("description") == true)
                 {
-                    <span class="field-error">La descripción no puede superar 4.000 caracteres.</span>
+                    <span id="proposal-description-error" class="field-error">La descripción no puede superar 4.000 caracteres.</span>
                 }
             </div>
             @if (error is not null)
