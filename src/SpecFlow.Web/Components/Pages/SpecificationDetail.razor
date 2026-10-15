@@ -180,10 +180,16 @@ else if (proposal is not null)
             </div>
 
             <AcceptanceCriteriaSection ProjectId="proposal.ProjectId" ProposalId="proposal.Id" Specification="specification"
-                                       Locked="@(editing || saving || refreshing || pendingRecovery is not null || recovery != RecoveryKind.None)"
+                                       Locked="@(ContentLocked || tasksActive)"
                                        OnActiveChanged="active => criteriaActive = active"
                                        ReloadSpecification="ReloadSpecificationAsync"
-                                       OnContextLost="HandleCriteriaContextLost" />
+                                       OnContextLost="HandleSectionContextLost" />
+
+            <ImplementationTasksSection ProjectId="proposal.ProjectId" ProposalId="proposal.Id" Specification="specification"
+                                        Locked="@(ContentLocked || criteriaActive)"
+                                        OnActiveChanged="active => tasksActive = active"
+                                        ReloadSpecification="ReloadSpecificationAsync"
+                                        OnContextLost="HandleSectionContextLost" />
         }
         else if (missingSpecification && recovery == RecoveryKind.None)
         {
@@ -260,9 +266,11 @@ else if (proposal is not null)
     private EditRecovery? pendingRecovery;
 
     private bool criteriaActive;
+    private bool tasksActive;
 
     private bool CanEdit => specification is { Status: "draft" } && entityTag is not null &&
-        !editing && !criteriaActive && pendingRecovery is null && recovery == RecoveryKind.None;
+        !editing && !criteriaActive && !tasksActive && pendingRecovery is null && recovery == RecoveryKind.None;
+    private bool ContentLocked => editing || saving || refreshing || pendingRecovery is not null || recovery != RecoveryKind.None;
     private bool EditLocked => saving || refreshing || pendingRecovery is not null;
     private bool HasEditChanges => !string.Equals(editContent, specification?.Content, StringComparison.Ordinal);
     private bool loading = true;
@@ -618,7 +626,7 @@ else if (proposal is not null)
         return result;
     }
 
-    private void HandleCriteriaContextLost(AcceptanceCriteriaSection.ContextLost lost)
+    private void HandleSectionContextLost(AcceptanceCriteriaSection.ContextLost lost)
     {
         unsavedContent = lost.LocalText;
         loadError = lost.Error;

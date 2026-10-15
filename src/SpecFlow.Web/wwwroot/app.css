@@ -83,6 +83,8 @@ h3 { font-size: 1.05rem; }
 .status.draft { background: #fff3d9; color: #8b6819; }
 .status.approved { background: #e4f4e5; color: #316e42; }
 .status.implemented { background: #e4edf8; color: #355d8b; }
+.status.in_progress { background: #e4edf8; color: #355d8b; }
+.status.completed { background: #e4f4e5; color: #316e42; }
 .status.verified { background: #e6e7f9; color: #514ba0; }
 .status.large { font-size: .88rem; padding: 8px 14px; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(250px, 1fr); gap: 18px; }
@@ -119,3 +121,6 @@ h3 { font-size: 1.05rem; }
 .criterion-form { max-width: 700px; margin-top: 18px; padding: 24px; }
 .criteria-empty { max-width: 700px; }
 .button.small { min-height: 34px; padding: 6px 12px; font-size: .82rem; }
+.task-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.task-title { margin: 5px 0 8px; font-weight: 700; color: #22362a; overflow-wrap: anywhere; }
+.task-dates { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 12px; color: #6c7b70; font-size: .82rem; }

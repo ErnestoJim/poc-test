@@ -32,6 +32,18 @@ public sealed record AcceptanceCriterionDto(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
+public sealed record ImplementationTaskDto(
+    Guid Id,
+    Guid SpecificationId,
+    string Title,
+    string? Description,
+    string Status,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    int Position,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
 public sealed record ApiError(int? StatusCode, string Message, IReadOnlySet<string> Fields)
 {
     public bool HasField(string name) => Fields.Contains(name);

@@ -83,7 +83,7 @@ implementación.
 | [0021](0021-web-specification-edit/spec.md) | Editar especificaciones desde la interfaz web | Implementada |
 | [0022](0022-web-form-field-errors/spec.md) | Errores de campo accesibles en los formularios web | Implementada |
 | [0023](0023-web-acceptance-criteria/spec.md) | Gestionar criterios de aceptación desde la interfaz web | Implementada |
-| [0024](0024-web-implementation-tasks/spec.md) | Gestionar tareas de implementación desde la interfaz web | Aprobada para implementación |
+| [0024](0024-web-implementation-tasks/spec.md) | Gestionar tareas de implementación desde la interfaz web | Implementada |
 
 ## Crear la siguiente spec
 

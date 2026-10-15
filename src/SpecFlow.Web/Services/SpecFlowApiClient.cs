@@ -177,6 +177,109 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             cancellationToken,
             entityTag);
 
+    public Task<ApiResult<List<ImplementationTaskDto>>> ListImplementationTasksAsync(
+        Guid projectId,
+        Guid proposalId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<List<ImplementationTaskDto>>(
+            HttpMethod.Get,
+            ImplementationTasksPath(projectId, proposalId),
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<ImplementationTaskDto>> CreateImplementationTaskAsync(
+        Guid projectId,
+        Guid proposalId,
+        string? title,
+        string? description,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ImplementationTaskDto>(
+            HttpMethod.Post,
+            ImplementationTasksPath(projectId, proposalId),
+            new { title, description },
+            cancellationToken);
+
+    public Task<ApiResult<ImplementationTaskDto>> GetImplementationTaskAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ImplementationTaskDto>(
+            HttpMethod.Get,
+            $"{ImplementationTasksPath(projectId, proposalId)}/{taskId}",
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<ImplementationTaskDto>> UpdateImplementationTaskAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId,
+        string? title,
+        string? description,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ImplementationTaskDto>(
+            HttpMethod.Put,
+            $"{ImplementationTasksPath(projectId, proposalId)}/{taskId}",
+            new { title, description },
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<bool>> DeleteImplementationTaskAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<bool>(
+            HttpMethod.Delete,
+            $"{ImplementationTasksPath(projectId, proposalId)}/{taskId}",
+            null,
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<bool>> ReorderImplementationTasksAsync(
+        Guid projectId,
+        Guid proposalId,
+        IReadOnlyList<Guid> taskIds,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<bool>(
+            HttpMethod.Put,
+            $"{ImplementationTasksPath(projectId, proposalId)}/order",
+            new { taskIds },
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<ImplementationTaskDto>> StartImplementationTaskAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ImplementationTaskDto>(
+            HttpMethod.Post,
+            $"{ImplementationTasksPath(projectId, proposalId)}/{taskId}/start",
+            null,
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<ImplementationTaskDto>> CompleteImplementationTaskAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ImplementationTaskDto>(
+            HttpMethod.Post,
+            $"{ImplementationTasksPath(projectId, proposalId)}/{taskId}/complete",
+            null,
+            cancellationToken,
+            entityTag);
+
+    private static string ImplementationTasksPath(Guid projectId, Guid proposalId) =>
+        $"/api/projects/{projectId}/proposals/{proposalId}/specification/tasks";
+
     private static string AcceptanceCriteriaPath(Guid projectId, Guid proposalId) =>
         $"/api/projects/{projectId}/proposals/{proposalId}/specification/acceptance-criteria";
 

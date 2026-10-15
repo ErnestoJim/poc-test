@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 15 de octubre de 2026.
+Implementada y verificada el 15 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -242,4 +242,54 @@ Son cambios internos de `SpecFlow.Web`; no afectan a la API.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlowApiClient` añade las ocho operaciones de tareas. El componente
+  `ImplementationTasksSection` repite el patrón de `AcceptanceCriteriaSection`,
+  como se acordó, y la vista amplía la coordinación para que contenido,
+  criterios y tareas se bloqueen mutuamente. No cambian la API, OpenAPI, el
+  dominio ni el esquema.
+- Ocho pruebas nuevas del cliente HTTP: rutas, título enviado sin recortar,
+  descripción exacta y `null`, `If-Match` literal, ETags de recurso y de
+  listado, `204`, transiciones sin cuerpo, clasificación de `400` (`title`,
+  `description` y `taskIds`), `404`, `409`, `412` y `428`, y fallos de conexión
+  de cada operación.
+- Navegador con API real y SQLite temporal:
+  - `draft`: aviso de lista vacía; título vacío y de 201 caracteres;
+    descripción de solo espacios y de 10.001 caracteres, cada error junto a su
+    campo con `aria-invalid="true"`. Al añadir, la API recortó el título y
+    conservó la descripción exacta. Título duplicado con otras mayúsculas al
+    añadir y al editar.
+  - Editar con «Guardar» deshabilitado sin cambios y confirmación al cancelar;
+    vaciar la descripción la guardó como `null`. Subir, bajar y eliminar con
+    confirmación dejaron el orden esperado en la API.
+  - Bloqueo mutuo: con texto en el alta de tareas, los criterios y «Editar» del
+    contenido quedan bloqueados; editando un criterio o el contenido, las
+    tareas también. Tras los cambios en tareas, editar el contenido y un
+    criterio guardó a la primera; el registro de la API no contiene ningún
+    `412`.
+  - `412` al editar una tarea cambiada por la API: ambas versiones y «Guardar
+    mi versión». Reordenar con una tarea añadida por la API: orden sin aplicar
+    y listado actualizado.
+  - Aprobación por la API durante la edición de una tarea: `409`, estado
+    «Aprobada», texto local visible y aparición de «Iniciar».
+  - `approved`: «Iniciar» y «Completar» con confirmación, estados «En curso» y
+    «Completada» con sus fechas. Una tarea iniciada por la API antes de
+    confirmar no se reenvió y se mostró «En curso».
+  - `implemented`: tareas en modo de lectura, sin controles.
+  - API detenida al añadir: bloqueo con el texto visible; tras reiniciar, «no
+    se añadió» con el texto en los campos, y «se añadió correctamente» cuando la
+    API ya tenía la tarea, comparando el título recortado.
+- Corrección durante la verificación: el error de título duplicado no se
+  limpiaba al volver a escribir, porque solo se limpiaban errores `400`. Ahora
+  se limpia cualquier error asociado a `title` o `description`.
+- Desviación del plan: no se pudo reproducir en navegador un resultado incierto
+  en una transición. Con la API detenida falla primero la lectura previa de la
+  tarea, de modo que no se envía nada ni hay incertidumbre; la vista lo informa
+  sin bloquear. La rama de recuperación de transiciones comparte el tratamiento
+  de las demás operaciones y su clasificación se cubre en las pruebas del
+  cliente. Tampoco se provocó un `412` en una transición, por el mismo motivo.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 509 pruebas correctas (127 de dominio,
+  339 de integración y 43 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

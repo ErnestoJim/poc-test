@@ -1,0 +1,991 @@
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+
+<section class="section-block tasks-section" aria-labelledby="tasks-heading">
+    <div class="section-heading">
+        <h2 id="tasks-heading">Tareas de implementación</h2>
+        @if (tasks is not null)
+        {
+            <span class="count-pill">@tasks.Count</span>
+        }
+    </div>
+
+    @if (notice is not null)
+    {
+        <div class="notice decision-notice" role="alert">
+            <p>@notice</p>
+            @if (noticeError is not null)
+            {
+                <p>@noticeError.Message</p>
+            }
+            @if (pending is not null)
+            {
+                <button class="button subtle" @onclick="RecoverAsync" disabled="@refreshing">
+                    @(refreshing ? "Consultando…" : "Consultar estado actual")
+                </button>
+            }
+        </div>
+    }
+
+    @if ((Specification.Status is "draft" or "approved") && Locked)
+    {
+        <p class="section-hint">Termina la edición en curso para modificar las tareas.</p>
+    }
+
+    @if (loadingList)
+    {
+        <p class="notice">Cargando tareas…</p>
+    }
+    else if (listError is not null)
+    {
+        <div class="notice error" role="alert">
+            <p>No se pudieron cargar las tareas. @listError.Message</p>
+            <button class="button subtle" @onclick="LoadListAsync">Reintentar</button>
+        </div>
+    }
+    else if (tasks is { Count: 0 })
+    {
+        <div class="empty-state compact criteria-empty">
+            <h3>Todavía no hay tareas</h3>
+            <p>Una especificación necesita al menos una tarea de implementación antes de aprobarse.</p>
+        </div>
+    }
+    else if (tasks is not null)
+    {
+        <ol class="criteria-list">
+            @for (var index = 0; index < tasks.Count; index++)
+            {
+                var task = tasks[index];
+                var position = index;
+                <li class="criterion-row" @key="task.Id">
+                    <span class="criterion-number" aria-hidden="true">@(position + 1)</span>
+                    <div class="criterion-body">
+                        @if (editingId == task.Id)
+                        {
+                            @if (savedVersion is not null)
+                            {
+                                <div class="saved-version criterion-saved-version">
+                                    <p><strong>Versión guardada actual</strong>. Tu texto sigue en los campos sin guardar.</p>
+                                    <p class="task-title">@savedVersion.Title</p>
+                                    @if (savedVersion.Description is not null)
+                                    {
+                                        <p class="criterion-content">@savedVersion.Description</p>
+                                    }
+                                </div>
+                            }
+                            <form @onsubmit="SaveEditAsync" @onsubmit:preventDefault>
+                                <div class="field">
+                                    <label for="task-edit-title">Título de la tarea @(position + 1) <span class="required">*</span></label>
+                                    <input id="task-edit-title" @bind="editTitle" @bind:event="oninput" @bind:after="ClearEditErrors"
+                                           disabled="@Busy"
+                                           aria-invalid="@FieldValidation.AriaInvalid(editError, "title")"
+                                           aria-describedby="@FieldValidation.DescribedBy(editError, "title", "task-edit-title")" />
+                                    <small id="task-edit-title-hint">Hasta 200 caracteres, único en la especificación sin distinguir mayúsculas.</small>
+                                    @if (editError?.HasField("title") == true)
+                                    {
+                                        <span id="task-edit-title-error" class="field-error">@TitleMessage(editError)</span>
+                                    }
+                                </div>
+                                <div class="field">
+                                    <label for="task-edit-description">Descripción <span class="optional">(opcional)</span></label>
+                                    <textarea id="task-edit-description" @bind="editDescription" @bind:event="oninput" @bind:after="ClearEditErrors"
+                                              rows="4" disabled="@Busy"
+                                              aria-invalid="@FieldValidation.AriaInvalid(editError, "description")"
+                                              aria-describedby="@FieldValidation.DescribedBy(editError, "description", "task-edit-description")"></textarea>
+                                    <small id="task-edit-description-hint">Hasta 10.000 caracteres. Déjala vacía si la tarea no necesita descripción.</small>
+                                    @if (editError?.HasField("description") == true)
+                                    {
+                                        <span id="task-edit-description-error" class="field-error">@DescriptionMessage</span>
+                                    }
+                                </div>
+                                @if (confirmDiscard)
+                                {
+                                    <div class="notice" role="alert">
+                                        <p>¿Descartar los cambios sin guardar?</p>
+                                        <div class="form-actions">
+                                            <button class="button primary" type="button" @onclick="DiscardEdit">Descartar cambios</button>
+                                            <button class="button subtle" type="button" @onclick="() => confirmDiscard = false">Seguir editando</button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="form-actions">
+                                        <button class="button primary" type="submit" disabled="@(Busy || !HasEditChanges)">
+                                            @(sending ? "Guardando…" : savedVersion is not null ? "Guardar mi versión" : "Guardar")
+                                        </button>
+                                        @if (savedVersion is not null)
+                                        {
+                                            <button class="button subtle" type="button" @onclick="DiscardEdit" disabled="@Busy">Descartar mi versión</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="button subtle" type="button" @onclick="CancelEdit" disabled="@Busy">Cancelar</button>
+                                        }
+                                    </div>
+                                }
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="task-heading">
+                                <p class="task-title">@task.Title</p>
+                                <span class="status @task.Status">@StatusLabel(task.Status)</span>
+                            </div>
+                            @if (task.Description is not null)
+                            {
+                                <p class="criterion-content">@task.Description</p>
+                            }
+                            @if (task.StartedAtUtc is not null || task.CompletedAtUtc is not null)
+                            {
+                                <p class="task-dates">
+                                    @if (task.StartedAtUtc is { } startedAt)
+                                    {
+                                        <span>Iniciada el @FormatDate(startedAt)</span>
+                                    }
+                                    @if (task.CompletedAtUtc is { } completedAt)
+                                    {
+                                        <span>Completada el @FormatDate(completedAt)</span>
+                                    }
+                                </p>
+                            }
+
+                            @if (confirmDeleteId == task.Id)
+                            {
+                                <div class="notice" role="alert">
+                                    <p>¿Eliminar esta tarea? También se eliminarán sus vínculos con criterios, si los tiene.</p>
+                                    <div class="form-actions">
+                                        <button class="button primary" type="button" @onclick="DeleteAsync" disabled="@Busy">
+                                            @(sending ? "Eliminando…" : "Eliminar tarea")
+                                        </button>
+                                        <button class="button subtle" type="button" @onclick="() => confirmDeleteId = null" disabled="@Busy">Cancelar</button>
+                                    </div>
+                                </div>
+                            }
+                            else if (confirmTransitionId == task.Id && confirmTransition is { } transition)
+                            {
+                                <div class="notice" role="alert">
+                                    <p>@(transition == Operation.Start
+                                        ? "¿Iniciar esta tarea? No se podrá volver a dejarla pendiente."
+                                        : "¿Completar esta tarea? No se podrá reabrir después.")</p>
+                                    <div class="form-actions">
+                                        <button class="button primary" type="button" @onclick="TransitionAsync" disabled="@Busy">
+                                            @(sending ? "Guardando…" : transition == Operation.Start ? "Confirmar inicio" : "Confirmar finalización")
+                                        </button>
+                                        <button class="button subtle" type="button" @onclick="CancelTransition" disabled="@Busy">Cancelar</button>
+                                    </div>
+                                </div>
+                            }
+                            else if (Planning)
+                            {
+                                <div class="criterion-actions">
+                                    <button class="button subtle small" type="button" @onclick="() => MoveAsync(position, -1)"
+                                            disabled="@(ActionsLocked || position == 0)" aria-label="@($"Subir tarea {position + 1}")">Subir</button>
+                                    <button class="button subtle small" type="button" @onclick="() => MoveAsync(position, 1)"
+                                            disabled="@(ActionsLocked || position == tasks.Count - 1)" aria-label="@($"Bajar tarea {position + 1}")">Bajar</button>
+                                    <button class="button subtle small" type="button" @onclick="() => StartEditAsync(task)"
+                                            disabled="@(ActionsLocked || HasNewText)" aria-label="@($"Editar tarea {position + 1}")">Editar</button>
+                                    <button class="button subtle small" type="button" @onclick="() => ConfirmDelete(task.Id)"
+                                            disabled="@ActionsLocked" aria-label="@($"Eliminar tarea {position + 1}")">Eliminar</button>
+                                </div>
+                            }
+                            else if (Executing && task.Status is "pending" or "in_progress")
+                            {
+                                <div class="criterion-actions">
+                                    @if (task.Status == "pending")
+                                    {
+                                        <button class="button subtle small" type="button" @onclick="() => ConfirmTransitionFor(task.Id, Operation.Start)"
+                                                disabled="@ActionsLocked" aria-label="@($"Iniciar tarea {position + 1}")">Iniciar</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="button subtle small" type="button" @onclick="() => ConfirmTransitionFor(task.Id, Operation.Complete)"
+                                                disabled="@ActionsLocked" aria-label="@($"Completar tarea {position + 1}")">Completar</button>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </li>
+            }
+        </ol>
+    }
+
+    @if (Specification.Status == "draft" && !Locked && tasks is not null)
+    {
+        <form class="form-card criterion-form" @onsubmit="AddAsync" @onsubmit:preventDefault>
+            <div class="field">
+                <label for="task-new-title">Nueva tarea <span class="required">*</span></label>
+                <input id="task-new-title" @bind="newTitle" @bind:event="oninput" @bind:after="ClearAddErrors"
+                       disabled="@AddLocked"
+                       aria-invalid="@FieldValidation.AriaInvalid(addError, "title")"
+                       aria-describedby="@FieldValidation.DescribedBy(addError, "title", "task-new-title")" />
+                <small id="task-new-title-hint">Hasta 200 caracteres, único en la especificación sin distinguir mayúsculas.</small>
+                @if (addError?.HasField("title") == true)
+                {
+                    <span id="task-new-title-error" class="field-error">@TitleMessage(addError)</span>
+                }
+            </div>
+            <div class="field">
+                <label for="task-new-description">Descripción <span class="optional">(opcional)</span></label>
+                <textarea id="task-new-description" @bind="newDescription" @bind:event="oninput" @bind:after="ClearAddErrors"
+                          rows="3" disabled="@AddLocked"
+                          aria-invalid="@FieldValidation.AriaInvalid(addError, "description")"
+                          aria-describedby="@FieldValidation.DescribedBy(addError, "description", "task-new-description")"></textarea>
+                <small id="task-new-description-hint">Hasta 10.000 caracteres. Déjala vacía si la tarea no necesita descripción.</small>
+                @if (addError?.HasField("description") == true)
+                {
+                    <span id="task-new-description-error" class="field-error">@DescriptionMessage</span>
+                }
+            </div>
+            <div class="form-actions">
+                <button class="button primary" type="submit" disabled="@AddLocked">
+                    @(sending && pendingOperation == Operation.Add ? "Añadiendo…" : "Añadir tarea")
+                </button>
+            </div>
+        </form>
+    }
+
+    @if (unsavedText is not null)
+    {
+        <section class="detail-card unsaved-content" aria-label="Texto de tarea no guardado">
+            <h3>Texto de tarea no guardado</h3>
+            <p>No se pudo guardar. Puedes copiarlo antes de salir.</p>
+            <p class="criterion-content">@unsavedText</p>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProjectId { get; set; }
+    [Parameter, EditorRequired] public Guid ProposalId { get; set; }
+    [Parameter, EditorRequired] public SpecificationDto Specification { get; set; } = default!;
+
+    // True while another part of the page has an edit, a request or a recovery in progress.
+    [Parameter] public bool Locked { get; set; }
+    [Parameter] public EventCallback<bool> OnActiveChanged { get; set; }
+    [Parameter, EditorRequired] public Func<Task<ApiResult<SpecificationDto>>> ReloadSpecification { get; set; } = default!;
+    [Parameter] public EventCallback<AcceptanceCriteriaSection.ContextLost> OnContextLost { get; set; }
+
+    private enum Operation { Add, Edit, Delete, Reorder, Start, Complete }
+
+    private sealed record TaskText(string Title, string? Description);
+
+    private const string DescriptionMessage = "Escribe una descripción con contenido de hasta 10.000 caracteres o déjala vacía.";
+
+    private Guid? loadedFor;
+    private List<ImplementationTaskDto>? tasks;
+    private string? listEntityTag;
+    private ApiError? listError;
+    private bool loadingList;
+
+    private string? newTitle;
+    private string? newDescription;
+    private ApiError? addError;
+
+    private Guid? editingId;
+    private string? editTitle;
+    private string? editDescription;
+    private string? editEntityTag;
+    private TaskText? savedVersion;
+    private ApiError? editError;
+    private bool confirmDiscard;
+
+    private Guid? confirmDeleteId;
+    private Guid? confirmTransitionId;
+    private Operation? confirmTransition;
+
+    private bool sending;
+    private bool refreshing;
+    private Operation? pending;
+    private Operation? pendingOperation;
+    private TaskText? sentText;
+    private Guid? targetId;
+    private List<Guid>? requestedOrder;
+
+    private string? notice;
+    private ApiError? noticeError;
+    private string? unsavedText;
+    private bool reportedActive;
+
+    private bool Busy => sending || refreshing;
+    private bool Planning => Specification.Status == "draft" && !Locked && pending is null;
+    private bool Executing => Specification.Status == "approved" && !Locked && pending is null;
+    private bool HasNewText => !string.IsNullOrEmpty(newTitle) || !string.IsNullOrEmpty(newDescription);
+    private bool AddLocked => Busy || editingId is not null || pending is not null;
+    private bool ActionsLocked => Busy || editingId is not null || confirmDeleteId is not null || confirmTransitionId is not null;
+    private bool HasEditChanges => editingId is { } id && tasks?.FirstOrDefault(t => t.Id == id) is { } saved &&
+        (!string.Equals(editTitle, saved.Title, StringComparison.Ordinal) ||
+         !string.Equals(Normalize(editDescription), saved.Description, StringComparison.Ordinal));
+    private bool Active => editingId is not null || confirmDeleteId is not null || confirmTransitionId is not null ||
+        Busy || pending is not null || HasNewText;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loadedFor != Specification.Id)
+        {
+            loadedFor = Specification.Id;
+            await LoadListAsync();
+        }
+
+        if (Specification.Status != "draft")
+        {
+            MoveLocalTextToUnsaved();
+        }
+
+        if (Specification.Status != "approved")
+        {
+            CancelTransition();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var active = Active;
+        if (active != reportedActive)
+        {
+            reportedActive = active;
+            await OnActiveChanged.InvokeAsync(active);
+        }
+    }
+
+    private async Task LoadListAsync()
+    {
+        loadingList = true;
+        listError = null;
+        try
+        {
+            var result = await Api.ListImplementationTasksAsync(ProjectId, ProposalId);
+            if (result.Value is { } current)
+            {
+                tasks = current;
+                listEntityTag = result.EntityTag;
+            }
+            else
+            {
+                listError = result.Error;
+            }
+        }
+        finally
+        {
+            loadingList = false;
+        }
+    }
+
+    private void ClearAddErrors()
+    {
+        if (HasFieldError(addError))
+        {
+            addError = null;
+        }
+    }
+
+    private void ClearEditErrors()
+    {
+        confirmDiscard = false;
+        if (HasFieldError(editError))
+        {
+            editError = null;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        if (!Planning || AddLocked) return;
+        var text = new TaskText(newTitle ?? "", Normalize(newDescription));
+        BeginSend(Operation.Add, text, null);
+        addError = null;
+        try
+        {
+            var result = await Api.CreateImplementationTaskAsync(ProjectId, ProposalId, newTitle, text.Description);
+            if (result.Value is not null)
+            {
+                newTitle = null;
+                newDescription = null;
+                await AfterChangeAsync("Tarea añadida.");
+                return;
+            }
+
+            if (IsFieldValidation(result.Error))
+            {
+                addError = result.Error;
+                return;
+            }
+
+            await HandleFailureAsync(Operation.Add, result.Error);
+        }
+        finally
+        {
+            sending = false;
+        }
+    }
+
+    private async Task StartEditAsync(ImplementationTaskDto task)
+    {
+        if (!Planning || ActionsLocked) return;
+        sending = true;
+        ClearNotice();
+        try
+        {
+            var result = await Api.GetImplementationTaskAsync(ProjectId, ProposalId, task.Id);
+            if (result.Value is not { } current || result.EntityTag is null)
+            {
+                if (result.Error?.StatusCode == 404)
+                {
+                    await HandleMissingAsync(null);
+                    return;
+                }
+
+                notice = "No se pudo abrir la tarea para editarla.";
+                noticeError = result.Error;
+                return;
+            }
+
+            editingId = current.Id;
+            editTitle = current.Title;
+            editDescription = current.Description;
+            editEntityTag = result.EntityTag;
+            savedVersion = null;
+            editError = null;
+            confirmDiscard = false;
+            if (current != task)
+            {
+                ReplaceTask(current);
+                notice = "La tarea cambió desde que se cargó el listado. Se muestra su versión actual.";
+            }
+        }
+        finally
+        {
+            sending = false;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        if (HasEditChanges)
+        {
+            confirmDiscard = true;
+            return;
+        }
+
+        ExitEdit();
+    }
+
+    private void DiscardEdit()
+    {
+        ExitEdit();
+        ClearNotice();
+    }
+
+    private void ExitEdit()
+    {
+        editingId = null;
+        editTitle = null;
+        editDescription = null;
+        editEntityTag = null;
+        savedVersion = null;
+        editError = null;
+        confirmDiscard = false;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (editingId is not { } id || editEntityTag is null || !Planning || Busy || !HasEditChanges) return;
+        var text = new TaskText(editTitle ?? "", Normalize(editDescription));
+        BeginSend(Operation.Edit, text, id);
+        editError = null;
+        try
+        {
+            var result = await Api.UpdateImplementationTaskAsync(ProjectId, ProposalId, id, editTitle, text.Description, editEntityTag);
+            if (result.Value is not null)
+            {
+                ExitEdit();
+                await AfterChangeAsync("Tarea actualizada.");
+                return;
+            }
+
+            if (IsFieldValidation(result.Error))
+            {
+                editError = result.Error;
+                return;
+            }
+
+            if (result.Error?.StatusCode == 412)
+            {
+                pending = Operation.Edit;
+                notice = "La tarea cambió desde que empezaste a editarla. Consultando su versión actual…";
+            }
+            else
+            {
+                await HandleFailureAsync(Operation.Edit, result.Error);
+                return;
+            }
+        }
+        finally
+        {
+            sending = false;
+        }
+
+        await RecoverAsync();
+    }
+
+    private void ConfirmDelete(Guid taskId)
+    {
+        if (!Planning || ActionsLocked) return;
+        ClearNotice();
+        confirmDeleteId = taskId;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (confirmDeleteId is not { } id || !Planning || Busy) return;
+        var listed = tasks?.FirstOrDefault(t => t.Id == id);
+        BeginSend(Operation.Delete, null, id);
+        try
+        {
+            var current = await Api.GetImplementationTaskAsync(ProjectId, ProposalId, id);
+            if (current.Value is null || current.EntityTag is null)
+            {
+                confirmDeleteId = null;
+                if (current.Error?.StatusCode == 404)
+                {
+                    await HandleMissingAsync(null);
+                    return;
+                }
+
+                notice = "No se pudo comprobar la tarea antes de eliminarla.";
+                noticeError = current.Error;
+                return;
+            }
+
+            if (listed is null || current.Value.Title != listed.Title || current.Value.Description != listed.Description)
+            {
+                confirmDeleteId = null;
+                await ReloadAllAsync();
+                notice = "La tarea cambió desde que se cargó el listado. Revísala antes de eliminarla.";
+                return;
+            }
+
+            var result = await Api.DeleteImplementationTaskAsync(ProjectId, ProposalId, id, current.EntityTag);
+            confirmDeleteId = null;
+            if (result.IsSuccess)
+            {
+                await AfterChangeAsync("Tarea eliminada.");
+                return;
+            }
+
+            if (result.Error?.StatusCode == 412)
+            {
+                await ReloadAllAsync();
+                notice = "La tarea cambió antes de eliminarla. Revisa el listado actual.";
+                return;
+            }
+
+            await HandleFailureAsync(Operation.Delete, result.Error);
+        }
+        finally
+        {
+            sending = false;
+        }
+    }
+
+    private async Task MoveAsync(int index, int offset)
+    {
+        var target = index + offset;
+        if (!Planning || ActionsLocked || tasks is null || listEntityTag is null ||
+            target < 0 || target >= tasks.Count) return;
+
+        var order = tasks.Select(t => t.Id).ToList();
+        (order[index], order[target]) = (order[target], order[index]);
+        BeginSend(Operation.Reorder, null, null);
+        requestedOrder = order;
+        try
+        {
+            var result = await Api.ReorderImplementationTasksAsync(ProjectId, ProposalId, order, listEntityTag);
+            if (result.IsSuccess)
+            {
+                await AfterChangeAsync(null);
+                return;
+            }
+
+            if (result.Error?.StatusCode == 412)
+            {
+                await ReloadAllAsync();
+                notice = "El listado de tareas cambió. Revisa el orden actual antes de moverlas.";
+                return;
+            }
+
+            await HandleFailureAsync(Operation.Reorder, result.Error);
+        }
+        finally
+        {
+            sending = false;
+        }
+    }
+
+    private void ConfirmTransitionFor(Guid taskId, Operation transition)
+    {
+        if (!Executing || ActionsLocked) return;
+        ClearNotice();
+        confirmTransitionId = taskId;
+        confirmTransition = transition;
+    }
+
+    private void CancelTransition()
+    {
+        confirmTransitionId = null;
+        confirmTransition = null;
+    }
+
+    private async Task TransitionAsync()
+    {
+        if (confirmTransitionId is not { } id || confirmTransition is not { } transition || !Executing || Busy) return;
+        var expectedStatus = transition == Operation.Start ? "pending" : "in_progress";
+        BeginSend(transition, null, id);
+        try
+        {
+            var current = await Api.GetImplementationTaskAsync(ProjectId, ProposalId, id);
+            CancelTransition();
+            if (current.Value is null || current.EntityTag is null)
+            {
+                if (current.Error?.StatusCode == 404)
+                {
+                    await HandleMissingAsync(null);
+                    return;
+                }
+
+                notice = "No se pudo comprobar la tarea antes de cambiar su estado.";
+                noticeError = current.Error;
+                return;
+            }
+
+            if (current.Value.Status != expectedStatus)
+            {
+                ReplaceTask(current.Value);
+                notice = "La tarea ya cambió de estado. Se muestra su estado actual.";
+                return;
+            }
+
+            var result = transition == Operation.Start
+                ? await Api.StartImplementationTaskAsync(ProjectId, ProposalId, id, current.EntityTag)
+                : await Api.CompleteImplementationTaskAsync(ProjectId, ProposalId, id, current.EntityTag);
+            if (result.Value is not null)
+            {
+                await AfterChangeAsync(transition == Operation.Start ? "Tarea iniciada." : "Tarea completada.");
+                return;
+            }
+
+            if (result.Error?.StatusCode == 412)
+            {
+                await ReloadAllAsync();
+                notice = "La tarea cambió antes de aplicar el cambio. Se muestra su estado actual.";
+                return;
+            }
+
+            await HandleFailureAsync(transition, result.Error);
+        }
+        finally
+        {
+            sending = false;
+        }
+    }
+
+    private void BeginSend(Operation operation, TaskText? text, Guid? taskId)
+    {
+        sending = true;
+        ClearNotice();
+        pendingOperation = operation;
+        sentText = text;
+        targetId = taskId;
+        requestedOrder = null;
+    }
+
+    // The specification ETag covers the whole plan, so it is refreshed after every task change.
+    private async Task AfterChangeAsync(string? message)
+    {
+        var specification = await ReloadSpecification();
+        await LoadListAsync();
+        notice = message;
+        if (specification.Value is null)
+        {
+            notice = $"{message} No se pudo actualizar la especificación; consúltala de nuevo antes de editarla.".TrimStart();
+            noticeError = specification.Error;
+        }
+    }
+
+    private async Task HandleFailureAsync(Operation operation, ApiError? error)
+    {
+        switch (error?.StatusCode)
+        {
+            case 409:
+                await ClassifyConflictAsync(operation);
+                break;
+            case 404:
+                await HandleMissingAsync(operation is Operation.Add or Operation.Edit ? LocalText() : null);
+                break;
+            case null or >= 500:
+                pending = operation;
+                notice = "No se sabe si el cambio se aplicó. Consulta el estado actual antes de intentarlo de nuevo.";
+                noticeError = error;
+                break;
+            default:
+                pending = operation;
+                notice = "No se pudo completar la operación. Consulta el estado actual antes de intentarlo de nuevo.";
+                break;
+        }
+    }
+
+    private async Task ClassifyConflictAsync(Operation operation)
+    {
+        var specification = await ReloadSpecification();
+        if (specification.Value is not { } current)
+        {
+            await HandleSpecificationErrorAsync(operation, specification.Error);
+            return;
+        }
+
+        var expectedStatus = operation is Operation.Start or Operation.Complete ? "approved" : "draft";
+        if (current.Status != expectedStatus)
+        {
+            await LoadListAsync();
+            MoveLocalTextToUnsaved();
+            notice = current.Status == "approved"
+                ? "La especificación se aprobó y su planificación ya no se puede modificar."
+                : "La especificación cambió de estado y las tareas se muestran según su estado actual.";
+            return;
+        }
+
+        switch (operation)
+        {
+            case Operation.Add:
+                addError = DuplicateError();
+                break;
+            case Operation.Edit:
+                editError = DuplicateError();
+                break;
+            case Operation.Start or Operation.Complete:
+                await LoadListAsync();
+                notice = "La tarea ya cambió de estado. Se muestra su estado actual.";
+                break;
+            default:
+                await LoadListAsync();
+                notice = "El listado de tareas cambió. Revisa el listado actual.";
+                break;
+        }
+    }
+
+    private async Task HandleMissingAsync(string? localText)
+    {
+        var specification = await ReloadSpecification();
+        if (specification.Value is null)
+        {
+            if (specification.Error?.StatusCode == 404)
+            {
+                await OnContextLost.InvokeAsync(new AcceptanceCriteriaSection.ContextLost(specification.Error, localText ?? LocalText()));
+                return;
+            }
+
+            notice = "No se pudo comprobar el estado actual de la especificación.";
+            noticeError = specification.Error;
+            return;
+        }
+
+        if (editingId is not null)
+        {
+            unsavedText = LocalText();
+            ExitEdit();
+        }
+
+        await LoadListAsync();
+        notice = "La tarea ya no existe. Se muestra el listado actual.";
+    }
+
+    private async Task HandleSpecificationErrorAsync(Operation operation, ApiError? error)
+    {
+        if (error?.StatusCode == 404)
+        {
+            await OnContextLost.InvokeAsync(new AcceptanceCriteriaSection.ContextLost(error, LocalText()));
+            return;
+        }
+
+        pending = operation;
+        notice = "No se pudo comprobar el estado actual de la especificación.";
+        noticeError = error;
+    }
+
+    private async Task RecoverAsync()
+    {
+        if (refreshing || pending is not { } operation) return;
+        refreshing = true;
+        noticeError = null;
+        try
+        {
+            var specification = await ReloadSpecification();
+            if (specification.Value is not { } current)
+            {
+                await HandleSpecificationErrorAsync(operation, specification.Error);
+                return;
+            }
+
+            var list = await Api.ListImplementationTasksAsync(ProjectId, ProposalId);
+            if (list.Value is not { } currentTasks)
+            {
+                notice = "No se pudo consultar el listado actual de tareas.";
+                noticeError = list.Error;
+                return;
+            }
+
+            tasks = currentTasks;
+            listEntityTag = list.EntityTag;
+            listError = null;
+            pending = null;
+            notice = await ResolveRecoveryAsync(operation, currentTasks);
+
+            if (current.Status != "draft" && operation is Operation.Add or Operation.Edit or Operation.Delete or Operation.Reorder)
+            {
+                MoveLocalTextToUnsaved();
+                notice = $"{notice} La especificación ya no está en borrador y su planificación se muestra en modo de lectura.";
+            }
+        }
+        finally
+        {
+            refreshing = false;
+        }
+    }
+
+    private async Task<string> ResolveRecoveryAsync(Operation operation, List<ImplementationTaskDto> current)
+    {
+        switch (operation)
+        {
+            case Operation.Add:
+                if (sentText is not null && current.Any(t => Matches(t, sentText)))
+                {
+                    newTitle = null;
+                    newDescription = null;
+                    return "La tarea se añadió correctamente.";
+                }
+                return "La tarea no se añadió. Tu texto sigue en los campos.";
+
+            case Operation.Edit:
+                var target = current.FirstOrDefault(t => t.Id == targetId);
+                if (target is null)
+                {
+                    unsavedText = LocalText();
+                    ExitEdit();
+                    return "La tarea ya no existe. Tu texto no se guardó y se muestra abajo.";
+                }
+
+                if (Matches(target, new TaskText(editTitle ?? "", Normalize(editDescription))))
+                {
+                    ExitEdit();
+                    return "La tarea ya tiene el texto que enviaste.";
+                }
+
+                var fresh = await Api.GetImplementationTaskAsync(ProjectId, ProposalId, target.Id);
+                if (fresh.Value is null || fresh.EntityTag is null)
+                {
+                    pending = Operation.Edit;
+                    noticeError = fresh.Error;
+                    return "No se pudo consultar la versión actual de la tarea. Tu texto sigue en los campos.";
+                }
+
+                ReplaceTask(fresh.Value);
+                editingId = target.Id;
+                editEntityTag = fresh.EntityTag;
+                savedVersion = new TaskText(fresh.Value.Title, fresh.Value.Description);
+                return "Tu cambio no se guardó. Compara tu texto con la versión guardada y decide si guardas la tuya.";
+
+            case Operation.Delete:
+                return current.Any(t => t.Id == targetId)
+                    ? "La tarea no se eliminó. Puedes intentarlo de nuevo."
+                    : "La tarea se eliminó correctamente.";
+
+            case Operation.Start or Operation.Complete:
+                var expected = operation == Operation.Start ? "in_progress" : "completed";
+                return current.FirstOrDefault(t => t.Id == targetId)?.Status == expected
+                    ? "El cambio de estado se aplicó correctamente."
+                    : "El cambio de estado no se aplicó. Revisa el estado actual de la tarea.";
+
+            default:
+                return requestedOrder is not null && current.Select(t => t.Id).SequenceEqual(requestedOrder)
+                    ? "El nuevo orden se guardó correctamente."
+                    : "El orden no cambió. Revisa el listado actual.";
+        }
+    }
+
+    private async Task ReloadAllAsync()
+    {
+        await ReloadSpecification();
+        await LoadListAsync();
+    }
+
+    private void ReplaceTask(ImplementationTaskDto current)
+    {
+        var index = tasks?.FindIndex(t => t.Id == current.Id) ?? -1;
+        if (index >= 0)
+        {
+            tasks![index] = current;
+        }
+    }
+
+    // The API trims titles, so a saved task matches the sent text after trimming.
+    private static bool Matches(ImplementationTaskDto task, TaskText text) =>
+        string.Equals(task.Title, text.Title.Trim(), StringComparison.Ordinal) &&
+        string.Equals(task.Description, text.Description, StringComparison.Ordinal);
+
+    // An empty description field means "no description"; any other text is sent unchanged.
+    private static string? Normalize(string? description) =>
+        string.IsNullOrEmpty(description) ? null : description;
+
+    private string? LocalText()
+    {
+        var (title, description) = editingId is not null ? (editTitle, editDescription) : (newTitle, newDescription);
+        if (string.IsNullOrEmpty(title) && string.IsNullOrEmpty(description)) return null;
+        return string.IsNullOrEmpty(description) ? title : $"{title}\n\n{description}";
+    }
+
+    private void MoveLocalTextToUnsaved()
+    {
+        var local = LocalText();
+        if (local is not null)
+        {
+            unsavedText = local;
+        }
+
+        newTitle = null;
+        newDescription = null;
+        addError = null;
+        confirmDeleteId = null;
+        ExitEdit();
+    }
+
+    private void ClearNotice()
+    {
+        notice = null;
+        noticeError = null;
+    }
+
+    // Covers validation errors and the duplicate title shown next to the field.
+    private static bool HasFieldError(ApiError? error) =>
+        error is not null && (error.HasField("title") || error.HasField("description"));
+
+    private static bool IsFieldValidation(ApiError? error) =>
+        error is { StatusCode: 400 } && (error.HasField("title") || error.HasField("description"));
+
+    private static ApiError DuplicateError() =>
+        new(409, "Ya existe una tarea con ese título.", new HashSet<string> { "title" });
+
+    private static string TitleMessage(ApiError error) => error.StatusCode == 409
+        ? "Ya existe una tarea con ese título en esta especificación (sin distinguir mayúsculas)."
+        : "Introduce un título de hasta 200 caracteres.";
+
+    private static string FormatDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "pending" => "Pendiente",
+        "in_progress" => "En curso",
+        "completed" => "Completada",
+        _ => "Estado desconocido"
+    };
+}

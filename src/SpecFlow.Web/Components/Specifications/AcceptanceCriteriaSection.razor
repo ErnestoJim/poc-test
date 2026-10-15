@@ -29,7 +29,7 @@
 
     @if (Specification.Status == "draft" && Locked)
     {
-        <p class="section-hint">Termina la edición del contenido para modificar los criterios.</p>
+        <p class="section-hint">Termina la edición en curso para modificar los criterios.</p>
     }
 
     @if (loadingList)
@@ -185,7 +185,7 @@
     [Parameter, EditorRequired] public Guid ProposalId { get; set; }
     [Parameter, EditorRequired] public SpecificationDto Specification { get; set; } = default!;
 
-    // True while the specification content is being edited or recovered in the page.
+    // True while another part of the page has an edit, a request or a recovery in progress.
     [Parameter] public bool Locked { get; set; }
     [Parameter] public EventCallback<bool> OnActiveChanged { get; set; }
     [Parameter, EditorRequired] public Func<Task<ApiResult<SpecificationDto>>> ReloadSpecification { get; set; } = default!;
