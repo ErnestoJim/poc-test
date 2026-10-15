@@ -80,6 +80,7 @@ implementación.
 | [0018](0018-web-specification-create-read/spec.md) | Crear y consultar especificaciones desde la interfaz web | Implementada |
 | [0019](0019-malformed-request-bodies/spec.md) | Cuerpos de petición malformados | Implementada |
 | [0020](0020-follow-up-concurrency-test-stability/spec.md) | Estabilidad de la prueba de continuaciones concurrentes | Implementada |
+| [0021](0021-web-specification-edit/spec.md) | Editar especificaciones desde la interfaz web | Aprobada para implementación |
 
 ## Crear la siguiente spec
 
