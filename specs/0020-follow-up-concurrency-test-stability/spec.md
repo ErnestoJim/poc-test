@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 15 de octubre de 2026.
+Implementada y verificada el 15 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -116,4 +116,20 @@ Sin cambios de esquema.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `ConcurrentFollowUps_CanShareVerifiedSource` crea su propio archivo SQLite en
+  un directorio temporal y lo elimina en `finally`, como las demás pruebas de
+  concurrencia HTTP. Sus aserciones no cambiaron.
+- Constitución 1.1.0: nueva regla en «Persistencia y migraciones» y fecha de
+  última modificación actualizada. Las menciones a la 1.0.0 en `specs/README.md`
+  y en la plantilla son históricas y se conservan.
+- Sin cambios en código de producción.
+- 50 ejecuciones aisladas de la prueba: 0 fallos. No quedaron directorios
+  temporales.
+- 20 ejecuciones completas de `SpecFlow.Api.IntegrationTests`: 0 fallos (339
+  pruebas en cada una). Antes de la corrección se registró 1 fallo en 20.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 482 pruebas correctas (127 de dominio,
+  339 de integración y 16 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

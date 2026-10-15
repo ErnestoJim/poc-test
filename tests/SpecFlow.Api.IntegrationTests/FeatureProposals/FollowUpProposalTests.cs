@@ -233,29 +233,42 @@ public sealed class FollowUpProposalTests
     [Fact]
     public async Task ConcurrentFollowUps_CanShareVerifiedSource()
     {
-        using var factory = new SpecFlowApiFactory();
-        using var client = factory.CreateClient();
-        var source = await CreateVerifiedSourceAsync(client);
-        var sourceRoute = ProposalRoute(source.ProjectId, source.ProposalId);
-        var sourceBefore = await client.GetFromJsonAsync<FeatureProposalResponse>(sourceRoute);
+        var temporaryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"SpecFlow.Api.IntegrationTests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(temporaryDirectory);
 
-        var firstRequest = client.PostAsJsonAsync(
-            ProposalsRoute(source.ProjectId),
-            new CreateFeatureProposalRequest(
-                "First concurrent follow-up", null, source.ProposalId.ToString()));
-        var secondRequest = client.PostAsJsonAsync(
-            ProposalsRoute(source.ProjectId),
-            new CreateFeatureProposalRequest(
-                "Second concurrent follow-up", null, source.ProposalId.ToString()));
-        using var firstResponse = await firstRequest;
-        using var secondResponse = await secondRequest;
-        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.Created, secondResponse.StatusCode);
-        var children = await client.GetFromJsonAsync<FeatureProposalResponse[]>(
-            $"{sourceRoute}/follow-ups");
-        Assert.Equal(2, children?.Length);
-        Assert.Equal(sourceBefore,
-            await client.GetFromJsonAsync<FeatureProposalResponse>(sourceRoute));
+        try
+        {
+            var connectionString = $"Data Source={Path.Combine(temporaryDirectory, "specflow.db")}";
+            using var factory = new SpecFlowApiFactory(connectionString);
+            using var client = factory.CreateClient();
+            var source = await CreateVerifiedSourceAsync(client);
+            var sourceRoute = ProposalRoute(source.ProjectId, source.ProposalId);
+            var sourceBefore = await client.GetFromJsonAsync<FeatureProposalResponse>(sourceRoute);
+
+            var firstRequest = client.PostAsJsonAsync(
+                ProposalsRoute(source.ProjectId),
+                new CreateFeatureProposalRequest(
+                    "First concurrent follow-up", null, source.ProposalId.ToString()));
+            var secondRequest = client.PostAsJsonAsync(
+                ProposalsRoute(source.ProjectId),
+                new CreateFeatureProposalRequest(
+                    "Second concurrent follow-up", null, source.ProposalId.ToString()));
+            using var firstResponse = await firstRequest;
+            using var secondResponse = await secondRequest;
+            Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.Created, secondResponse.StatusCode);
+            var children = await client.GetFromJsonAsync<FeatureProposalResponse[]>(
+                $"{sourceRoute}/follow-ups");
+            Assert.Equal(2, children?.Length);
+            Assert.Equal(sourceBefore,
+                await client.GetFromJsonAsync<FeatureProposalResponse>(sourceRoute));
+        }
+        finally
+        {
+            Directory.Delete(temporaryDirectory, recursive: true);
+        }
     }
 
     private static async Task<(Guid ProjectId, Guid ProposalId)> CreateVerifiedSourceAsync(

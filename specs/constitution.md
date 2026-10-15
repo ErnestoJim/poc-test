@@ -3,9 +3,9 @@
 ## Estado y versión
 
 - Estado: vigente.
-- Versión: 1.0.0.
+- Versión: 1.1.0.
 - Ratificada: 8 de octubre de 2026.
-- Última modificación: 8 de octubre de 2026.
+- Última modificación: 15 de octubre de 2026.
 - Origen: reglas consolidadas durante las especificaciones 0001 a 0010.
 
 ## Propósito
@@ -149,6 +149,9 @@ Para una operación condicionada se evalúan, en este orden observable:
 - Las pruebas de integración utilizan SQLite real, normalmente en memoria con
   una conexión abierta durante cada prueba. No utilizan EF Core InMemory ni mocks
   de EF Core.
+- Las pruebas que envían peticiones HTTP simultáneas usan un archivo SQLite
+  temporal; la conexión en memoria compartida solo se usa en escenarios
+  secuenciales.
 
 ## Calidad y pruebas
 
