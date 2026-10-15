@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 15 de octubre de 2026.
+Implementada y verificada el 15 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -125,4 +125,29 @@ Sin cambios de esquema.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlow.Api` activa `ThrowOnBadRequest` en todos los entornos y traduce
+  `BadHttpRequestException` mediante `InvalidRequestBodyExceptionHandler`. Un
+  `400` de enlace produce `Invalid request body`; otros códigos de la excepción
+  conservan su estado con Problem Details genérico. OpenAPI ya documentaba
+  `400` en todas las operaciones con body y no requiere cambios.
+- `MalformedRequestBodyTests` cubre las 17 operaciones con body ante `{bad`,
+  body vacío y `[]` en `Development`, `Testing` y `Production`, sin `If-Match` y
+  con recursos inexistentes; tipos de propiedad incompatibles; ausencia de
+  detalles internos; datos y ETags intactos tras el rechazo; validación por
+  campo, `415` y creación válida en `Development`; y que la lista de operaciones
+  coincide con las que OpenAPI declara con `requestBody`.
+- Sin la corrección, 13 de las 15 pruebas nuevas fallan; con ella pasan todas.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 482 pruebas correctas (127 de dominio,
+  339 de integración y 16 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.
+- Prueba manual con `dotnet run --project src/SpecFlow.Api` (`Development`) y
+  `curl`: `{bad`, body vacío, `[]` y `{"name":123}` devuelven `400 Invalid
+  request body`; `text/plain` devuelve `415`; un body válido devuelve `201`; no
+  se persistió ningún proyecto rechazado y el log no registra errores.
+- Observación: el enlace del body ocurre antes de que el endpoint valide los
+  identificadores de ruta, por lo que una petición con identificador inválido y
+  body ilegible informa del body. Era el comportamiento previo en `Production` y
+  `Testing`; ambos casos responden `400`.

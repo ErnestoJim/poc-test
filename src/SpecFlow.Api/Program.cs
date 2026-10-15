@@ -5,6 +5,8 @@ using SpecFlow.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<InvalidRequestBodyExceptionHandler>();
+builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
 builder.Services.AddOpenApi(options =>
     options.AddOperationTransformer<HttpConcurrencyOpenApiTransformer>());
 builder.Services.AddSingleton(TimeProvider.System);

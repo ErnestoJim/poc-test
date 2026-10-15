@@ -11,11 +11,13 @@ namespace SpecFlow.Api.IntegrationTests.Infrastructure;
 internal sealed class SpecFlowApiFactory : WebApplicationFactory<Program>
 {
     private readonly string? _connectionString;
+    private readonly string _environment;
     private SqliteConnection? _connection;
 
-    public SpecFlowApiFactory(string? connectionString = null)
+    public SpecFlowApiFactory(string? connectionString = null, string environment = "Testing")
     {
         _connectionString = connectionString;
+        _environment = environment;
     }
 
     public MutableTimeProvider TimeProvider { get; } = new(
@@ -23,7 +25,7 @@ internal sealed class SpecFlowApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(_environment);
 
         builder.ConfigureServices(services =>
         {

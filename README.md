@@ -322,6 +322,14 @@ curl --request POST \
   --data '{"replacementDecisionId":"{acceptedReplacementDecisionId}"}'
 ```
 
+## Cuerpos de petición
+
+Los endpoints con body esperan JSON compatible con su contrato. Un body que no
+se puede leer (sintaxis inválida, vacío, raíz distinta de objeto o tipo de
+propiedad incompatible) devuelve `400 Bad Request` con Problem Details y el
+título `Invalid request body` en cualquier entorno. Un `Content-Type` no
+admitido sigue devolviendo `415 Unsupported Media Type`.
+
 ## Concurrencia optimista
 
 Las respuestas de especificaciones, criterios, tareas y decisiones técnicas
