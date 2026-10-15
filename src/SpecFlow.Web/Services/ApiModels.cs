@@ -29,7 +29,7 @@ public sealed record ApiError(int? StatusCode, string Message, IReadOnlySet<stri
     public bool HasField(string name) => Fields.Contains(name);
 }
 
-public sealed record ApiResult<T>(T? Value, ApiError? Error)
+public sealed record ApiResult<T>(T? Value, ApiError? Error, string? EntityTag = null)
 {
     public bool IsSuccess => Error is null;
 }

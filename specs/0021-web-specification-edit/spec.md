@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 15 de octubre de 2026.
+Implementada y verificada el 15 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -241,4 +241,49 @@ Son cambios internos de `SpecFlow.Web`; no afectan a la API.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlowApiClient` expone el ETag de las respuestas correctas en
+  `ApiResult.EntityTag` y añade `UpdateSpecificationAsync`, que envía `If-Match`
+  sin modificarlo. `SpecificationDetail` incorpora edición, cancelación con
+  confirmación en página y resolución de `412`, `409`, `404` y resultado
+  incierto. No cambian la API, OpenAPI, el dominio ni el esquema.
+- Ocho pruebas nuevas del cliente HTTP: ETag en `GET` y `POST` (sin `If-Match`),
+  `PUT` con contenido exacto e `If-Match` literal y adopción del nuevo ETag,
+  clasificación de `400` bajo `content`, `404`, `409`, `412` y `428`, y fallo de
+  conexión.
+- Navegador con API real y SQLite temporal:
+  - Edición y guardado sin recargar; la API confirmó el texto exacto. «Guardar
+    cambios» deshabilitado sin cambios.
+  - «Cancelar» sin cambios vuelve a lectura; con cambios pide confirmación en
+    página, «Seguir editando» conserva el texto y «Descartar cambios» sale.
+  - Validación de vacío, solo espacios y 100.001 caracteres: error junto al
+    campo, modo de edición y texto conservados.
+  - `412` por cambio de contenido hecho por la API: aviso de contenido cambiado,
+    versión guardada y texto local por separado, y «Guardar mi versión» guardó
+    con el ETag recién leído.
+  - `412` por un criterio añadido por la API: aviso de cambio del plan con el
+    contenido sin cambios; «Descartar mi versión» volvió a lectura.
+  - Aprobación por la API durante la edición: vista en modo de lectura, estado
+    «Aprobada», sin «Editar» y texto local accesible. La API respondió `412`,
+    no `409`, porque `If-Match` se evalúa antes que las reglas de dominio; la
+    vista llegó al estado esperado mediante la lectura de recuperación de UC-04.
+    La clasificación de un `409` directo se cubre en las pruebas del cliente.
+  - API detenida durante `PUT`: bloqueo de nuevos envíos con el texto
+    conservado. La consulta sin API mantuvo el bloqueo. Tras reiniciar la API:
+    si el cambio no llegó, se mostró «Tu cambio no se guardó» con ambas
+    versiones; si llegó (mismo texto aplicado por la API antes de consultar),
+    se mostró «El cambio se guardó correctamente». Una edición posterior guardó
+    sin conflicto, lo que confirma que se adoptó el ETag nuevo.
+- No se reprodujo en navegador un `404` durante el guardado, porque la API no
+  permite eliminar propuestas ni especificaciones. Esa rama conserva el texto
+  local junto al error contextual (revisión de código) y su clasificación se
+  cubre en las pruebas del cliente.
+- Durante la prueba se detectó que Blazor renderizaba `aria-invalid=""` para
+  `true`. El formulario de edición usa ahora `"true"`/`"false"` explícitos. Los
+  formularios de las specs 0017 y 0018 mantienen el patrón anterior y quedan
+  pendientes de una corrección propia.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 490 pruebas correctas (127 de dominio,
+  339 de integración y 24 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

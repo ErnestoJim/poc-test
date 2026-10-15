@@ -187,6 +187,81 @@ public sealed class SpecFlowApiClientTests
         Assert.Null(result.Error?.StatusCode);
     }
 
+    [Fact]
+    public async Task SpecificationReadAndCreationExposeEntityTag()
+    {
+        var specification = new SpecificationDto(
+            Guid.NewGuid(), ProposalId, "# Documento", "draft", null, null, null, CreatedAt, CreatedAt);
+        var handler = new RecordingHandler(
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.Created) { Content = JsonContent.Create(specification) }, "\"v1\""),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(specification) }, "\"v2\""));
+        var client = CreateClient(handler);
+
+        var created = await client.CreateSpecificationAsync(ProjectId, ProposalId, "# Documento");
+        var fetched = await client.GetSpecificationAsync(ProjectId, ProposalId);
+
+        Assert.Equal("\"v1\"", created.EntityTag);
+        Assert.Equal("\"v2\"", fetched.EntityTag);
+        Assert.All(handler.Requests, request => Assert.Null(request.IfMatch));
+    }
+
+    [Fact]
+    public async Task UpdateSpecificationSendsExactContentAndIfMatchAndReadsNewEntityTag()
+    {
+        const string markdown = "# Objetivo\r\n\r\n  Texto editado  ";
+        const string entityTag = "\"c3BlYy0xOjQ=\"";
+        var updated = new SpecificationDto(
+            Guid.NewGuid(), ProposalId, markdown, "draft", null, null, null, CreatedAt, CreatedAt.AddMinutes(5));
+        var handler = new RecordingHandler(WithEntityTag(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(updated) },
+            "\"c3BlYy0xOjU=\""));
+
+        var result = await CreateClient(handler).UpdateSpecificationAsync(ProjectId, ProposalId, markdown, entityTag);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal($"PUT /api/projects/{ProjectId}/proposals/{ProposalId}/specification", request.Route);
+        Assert.Equal(entityTag, request.IfMatch);
+        Assert.Equal(markdown, request.Body!.Value.GetProperty("content").GetString());
+        Assert.Equal(markdown, result.Value?.Content);
+        Assert.Equal(CreatedAt.AddMinutes(5), result.Value?.UpdatedAtUtc);
+        Assert.Equal("\"c3BlYy0xOjU=\"", result.EntityTag);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, 400, true)]
+    [InlineData(HttpStatusCode.NotFound, 404, false)]
+    [InlineData(HttpStatusCode.Conflict, 409, false)]
+    [InlineData(HttpStatusCode.PreconditionFailed, 412, false)]
+    [InlineData((HttpStatusCode)428, 428, false)]
+    public async Task SpecificationUpdateErrorsKeepStatusAndContentField(HttpStatusCode status, int expectedStatus, bool hasContent)
+    {
+        var handler = new RecordingHandler(new HttpResponseMessage(status)
+        {
+            Content = JsonContent.Create(new
+            {
+                title = "Error",
+                errors = hasContent ? new Dictionary<string, string[]> { ["content"] = ["Invalid"] } : null
+            })
+        });
+
+        var result = await CreateClient(handler).UpdateSpecificationAsync(ProjectId, ProposalId, "", "\"v1\"");
+
+        Assert.Null(result.Value);
+        Assert.Null(result.EntityTag);
+        Assert.Equal(expectedStatus, result.Error?.StatusCode);
+        Assert.Equal(hasContent, result.Error?.HasField("content"));
+        Assert.NotEmpty(result.Error!.Message);
+    }
+
+    [Fact]
+    public async Task SpecificationUpdateNetworkFailureHasUnknownStatus()
+    {
+        var result = await CreateClient(new FailingHandler()).UpdateSpecificationAsync(ProjectId, ProposalId, "# Documento", "\"v1\"");
+
+        Assert.Null(result.Value);
+        Assert.Null(result.Error?.StatusCode);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.BadRequest, "name", 400)]
     [InlineData(HttpStatusCode.Conflict, "name", 409)]
@@ -218,6 +293,12 @@ public sealed class SpecFlowApiClientTests
         Assert.NotEmpty(offline.Error!.Message);
     }
 
+    private static HttpResponseMessage WithEntityTag(HttpResponseMessage response, string entityTag)
+    {
+        response.Headers.ETag = System.Net.Http.Headers.EntityTagHeaderValue.Parse(entityTag);
+        return response;
+    }
+
     private static SpecFlowApiClient CreateClient(HttpMessageHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = new Uri("http://localhost:5194") });
 
@@ -225,7 +306,7 @@ public sealed class SpecFlowApiClientTests
     {
         private readonly Queue<HttpResponseMessage> responseQueue = new(responses);
 
-        public List<(string Route, JsonElement? Body)> Requests { get; } = [];
+        public List<(string Route, JsonElement? Body, string? IfMatch)> Requests { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -235,7 +316,8 @@ public sealed class SpecFlowApiClientTests
                 using var document = JsonDocument.Parse(await request.Content.ReadAsStringAsync(cancellationToken));
                 body = document.RootElement.Clone();
             }
-            Requests.Add(($"{request.Method} {request.RequestUri!.PathAndQuery}", body));
+            var ifMatch = request.Headers.TryGetValues("If-Match", out var values) ? string.Join(",", values) : null;
+            Requests.Add(($"{request.Method} {request.RequestUri!.PathAndQuery}", body, ifMatch));
             return responseQueue.Dequeue();
         }
     }

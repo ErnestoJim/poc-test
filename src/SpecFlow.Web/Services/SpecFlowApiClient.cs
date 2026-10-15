@@ -92,16 +92,36 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             new { content },
             cancellationToken);
 
+    public Task<ApiResult<SpecificationDto>> UpdateSpecificationAsync(
+        Guid projectId,
+        Guid proposalId,
+        string? content,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<SpecificationDto>(
+            HttpMethod.Put,
+            $"/api/projects/{projectId}/proposals/{proposalId}/specification",
+            new { content },
+            cancellationToken,
+            entityTag);
+
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpMethod method,
         string path,
         object? body,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? ifMatch = null)
     {
         using var request = new HttpRequestMessage(method, path);
         if (body is not null)
         {
             request.Content = JsonContent.Create(body, options: JsonOptions);
+        }
+
+        if (ifMatch is not null)
+        {
+            // The ETag is opaque: it is forwarded exactly as the API returned it.
+            request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
         }
 
         try
@@ -112,7 +132,7 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
                 var value = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
                 return value is null
                     ? new ApiResult<T>(default, new ApiError((int)response.StatusCode, "La API devolvió una respuesta vacía.", new HashSet<string>()))
-                    : new ApiResult<T>(value, null);
+                    : new ApiResult<T>(value, null, response.Headers.ETag?.ToString());
             }
 
             return new ApiResult<T>(default, await ReadErrorAsync(response, cancellationToken));
@@ -157,6 +177,7 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             HttpStatusCode.BadRequest => "Revisa los datos introducidos.",
             HttpStatusCode.NotFound => "El recurso solicitado ya no existe o no pertenece a este proyecto.",
             HttpStatusCode.Conflict => "No se pudo guardar por un conflicto con los datos existentes.",
+            HttpStatusCode.PreconditionFailed => "Los datos cambiaron desde la última consulta.",
             _ => "No se pudo completar la operación. Inténtalo de nuevo."
         };
         return new ApiError((int)response.StatusCode, message, fields);

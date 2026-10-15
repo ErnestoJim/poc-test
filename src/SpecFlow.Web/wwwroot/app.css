@@ -99,6 +99,11 @@ h3 { font-size: 1.05rem; }
 .markdown-source { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: .92rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #33473b; }
 .unsaved-content { margin-top: 22px; border-color: #e4d2a8; background: #fffdf6; }
 .unsaved-content p { color: #695f47; }
+.card-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 22px; }
+.card-heading h2 { margin-bottom: 0; }
+.saved-version { margin-bottom: 18px; border-color: #c9d6e8; background: #f7faff; }
+.saved-version p { color: #4d5f78; }
+.specification-edit .markdown-editor { min-height: 420px; }
 #blazor-error-ui { background: #fff4dd; bottom: 0; box-shadow: 0 -1px 10px #0002; display: none; left: 0; padding: .8rem 1.25rem; position: fixed; width: 100%; z-index: 1000; }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; top: .5rem; }
 @media (max-width: 700px) { .header-inner { padding: 0 18px; gap: 25px; } .header-caption { display: none; } .main-content { padding: 40px 18px 70px; } .page-heading { align-items: flex-start; flex-direction: column; gap: 12px; } .detail-grid { grid-template-columns: 1fr; } .proposal-row { align-items: flex-start; flex-direction: column; gap: 12px; } .form-card, .detail-card, .decision-section { padding: 22px; } .form-actions { flex-wrap: wrap; } }
