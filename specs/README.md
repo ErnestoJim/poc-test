@@ -78,6 +78,7 @@ implementación.
 | [0016](0016-first-web-interface/spec.md) | Primera interfaz web para proyectos y propuestas | Implementada |
 | [0017](0017-web-proposal-decisions/spec.md) | Decidir propuestas desde la interfaz web | Implementada |
 | [0018](0018-web-specification-create-read/spec.md) | Crear y consultar especificaciones desde la interfaz web | Implementada |
+| [0019](0019-malformed-request-bodies/spec.md) | Cuerpos de petición malformados | Aprobada para implementación |
 
 ## Crear la siguiente spec
 
