@@ -634,6 +634,73 @@ public sealed class SpecFlowApiClientTests
         });
     }
 
+    [Fact]
+    public async Task SpecificationTransitionsSendIfMatchWithoutBodyAndReadNewState()
+    {
+        var approved = new SpecificationDto(
+            Guid.NewGuid(), ProposalId, "# Spec", "approved", CreatedAt, null, null, CreatedAt, CreatedAt);
+        var implemented = approved with { Status = "implemented", ImplementedAtUtc = CreatedAt.AddDays(1) };
+        var basePath = $"/api/projects/{ProjectId}/proposals/{ProposalId}/specification";
+        var handler = new RecordingHandler(
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(approved) }, "\"s-2\""),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(implemented) }, "\"s-3\""));
+        var client = CreateClient(handler);
+
+        var approve = await client.ApproveSpecificationAsync(ProjectId, ProposalId, "\"s-1\"");
+        var markImplemented = await client.MarkSpecificationImplementedAsync(ProjectId, ProposalId, "\"s-2\"");
+
+        Assert.Equal("approved", approve.Value?.Status);
+        Assert.Equal(CreatedAt, approve.Value?.ApprovedAtUtc);
+        Assert.Equal("\"s-2\"", approve.EntityTag);
+        Assert.Equal("implemented", markImplemented.Value?.Status);
+        Assert.Equal(CreatedAt.AddDays(1), markImplemented.Value?.ImplementedAtUtc);
+        Assert.Equal("\"s-3\"", markImplemented.EntityTag);
+        Assert.Equal([$"POST {basePath}/approve", $"POST {basePath}/mark-implemented"], handler.Requests.Select(r => r.Route));
+        Assert.Equal(["\"s-1\"", "\"s-2\""], handler.Requests.Select(r => r.IfMatch));
+        Assert.All(handler.Requests, request => Assert.Null(request.Body));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, 400)]
+    [InlineData(HttpStatusCode.NotFound, 404)]
+    [InlineData(HttpStatusCode.Conflict, 409)]
+    [InlineData(HttpStatusCode.PreconditionFailed, 412)]
+    [InlineData((HttpStatusCode)428, 428)]
+    public async Task SpecificationTransitionErrorsKeepStatus(HttpStatusCode status, int expectedStatus)
+    {
+        HttpResponseMessage Error() => new(status) { Content = JsonContent.Create(new { title = "Error" }) };
+        var client = CreateClient(new RecordingHandler(Error(), Error()));
+
+        var approve = await client.ApproveSpecificationAsync(ProjectId, ProposalId, "\"v1\"");
+        var markImplemented = await client.MarkSpecificationImplementedAsync(ProjectId, ProposalId, "\"v1\"");
+
+        Assert.All([approve, markImplemented], result =>
+        {
+            Assert.Null(result.Value);
+            Assert.Null(result.EntityTag);
+            Assert.Equal(expectedStatus, result.Error?.StatusCode);
+            Assert.NotEmpty(result.Error!.Message);
+        });
+    }
+
+    [Fact]
+    public async Task SpecificationTransitionNetworkFailuresHaveUnknownStatus()
+    {
+        var client = CreateClient(new FailingHandler());
+
+        ApiError?[] errors =
+        [
+            (await client.ApproveSpecificationAsync(ProjectId, ProposalId, "\"v1\"")).Error,
+            (await client.MarkSpecificationImplementedAsync(ProjectId, ProposalId, "\"v1\"")).Error
+        ];
+
+        Assert.All(errors, error =>
+        {
+            Assert.NotNull(error);
+            Assert.Null(error.StatusCode);
+        });
+    }
+
     private static HttpResponseMessage WithEntityTag(HttpResponseMessage response, string entityTag)
     {
         response.Headers.ETag = System.Net.Http.Headers.EntityTagHeaderValue.Parse(entityTag);

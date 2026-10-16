@@ -93,6 +93,10 @@ h3 { font-size: 1.05rem; }
 .metadata dl { margin: 0; }
 .metadata dt { font-size: .75rem; color: #87948a; margin-bottom: 5px; }
 .metadata dd { margin: 0 0 20px; line-height: 1.5; overflow-wrap: anywhere; }
+.lifecycle-actions { padding-top: 18px; border-top: 1px solid #e9eee8; }
+.lifecycle-actions .button { width: 100%; }
+.lifecycle-actions .form-actions .button { width: auto; }
+.lifecycle-actions .section-hint { margin: 10px 0 0; }
 .metadata dd:last-child { margin-bottom: 0; }
 .metadata a { color: #276b43; }
 .specification-empty { max-width: 700px; }

@@ -80,8 +80,11 @@ implementación se gestionan igual mientras la especificación está en borrador
 una vez aprobada, cada tarea puede iniciarse y completarse tras confirmación.
 Cada tarea indica qué criterios cubre y, en borrador, la sección resume los
 criterios que aún no tienen tarea; «Vincular criterios» permite elegirlos con
-casillas y guarda la selección completa. El resto del ciclo de vida de
-especificaciones sigue gestionándose por la API.
+casillas y guarda la selección completa. Con el plan listo, «Aprobar
+especificación» la aprueba tras confirmación, y cuando todas las tareas están
+completadas, «Marcar como implementada» cierra la ejecución. Si la API rechaza
+el cambio, la web explica qué requisito falta. La verificación de criterios y
+de la especificación sigue gestionándose por la API.
 
 La web llama a la API desde su servidor. Para usar otra dirección, configura
 `SpecFlowApi__BaseUrl` en el proceso web; en desarrollo vale por defecto

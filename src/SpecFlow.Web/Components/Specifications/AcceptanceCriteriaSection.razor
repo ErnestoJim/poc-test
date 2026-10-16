@@ -185,6 +185,9 @@
     [Parameter, EditorRequired] public Guid ProposalId { get; set; }
     [Parameter, EditorRequired] public SpecificationDto Specification { get; set; } = default!;
 
+    // Changes whenever anything in the plan changes, so the list is re-read after outside changes.
+    [Parameter] public string? SpecificationEntityTag { get; set; }
+
     // True while another part of the page has an edit, a request or a recovery in progress.
     [Parameter] public bool Locked { get; set; }
     [Parameter] public EventCallback<bool> OnActiveChanged { get; set; }
@@ -198,6 +201,7 @@
     private string? listEntityTag;
     private ApiError? listError;
     private bool loadingList;
+    private string? listLoadedForTag;
 
     private string? newContent;
     private ApiError? addError;
@@ -240,6 +244,10 @@
             loadedFor = Specification.Id;
             await LoadListAsync();
         }
+        else if (SpecificationEntityTag != listLoadedForTag && !Busy && !loadingList)
+        {
+            await LoadListAsync();
+        }
 
         if (Specification.Status != "draft")
         {
@@ -259,6 +267,7 @@
 
     private async Task LoadListAsync()
     {
+        listLoadedForTag = SpecificationEntityTag;
         loadingList = true;
         listError = null;
         try

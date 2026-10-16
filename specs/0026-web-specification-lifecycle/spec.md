@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 16 de octubre de 2026.
+Implementada y verificada el 16 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -199,4 +199,54 @@ Son cambios internos de `SpecFlow.Web`; no afectan a la API.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlowApiClient` añade las dos transiciones, sin cuerpo y con `If-Match`.
+  `SpecificationDetail` muestra la acción disponible según el estado, con su
+  confirmación y recuperación, y amplía el bloqueo de la vista.
+  `AcceptanceCriteriaSection` relee su listado cuando cambia el ETag de la
+  especificación. No cambian la API, OpenAPI, el dominio ni el esquema.
+- Tres pruebas nuevas del cliente HTTP (siete casos): rutas, ausencia de
+  cuerpo, `If-Match` literal, estado, fecha y ETag de la respuesta,
+  clasificación de `400`, `404`, `409`, `412` y `428`, y fallos de conexión.
+- Navegador con API real y SQLite temporal:
+  - Aprobar sin criterios ni tareas y con un criterio sin tarea: `409`, estado
+    «Borrador» y requisitos explicados. Tras vincular el criterio desde la web,
+    la aprobación respondió `200`, mostró «Aprobada» con su fecha y las
+    secciones pasaron a su modo de `approved` sin recargar.
+  - Marcar implementada con la tarea pendiente: `409` y requisito explicado.
+    Tras iniciar y completar la tarea desde la web, `200`, «Implementada» con su
+    fecha, tareas en modo de lectura y sin acciones de ciclo de vida. Ningún
+    paso respondió `412`.
+  - Durante la confirmación solo quedan habilitados «Confirmar» y «Cancelar».
+    La acción queda deshabilitada, con su aviso, mientras se edita el
+    contenido o un criterio, hay texto en el alta de tareas o se eligen
+    criterios.
+  - Criterio añadido por la API antes de confirmar la aprobación: `412`, aviso
+    de plan cambiado, el nuevo criterio apareció en su sección y el resumen de
+    cobertura pasó a «Criterio sin tarea: 2».
+  - Aprobación por la API antes de confirmar: la web informó de que ya estaba
+    aprobada y pasó a ofrecer «Marcar como implementada».
+  - API detenida al confirmar «Marcar como implementada»: bloqueo con
+    «Consultar estado actual» como única acción; tras reiniciar, «no se
+    aplicó», y «se aplicó correctamente» cuando la API ya la había marcado.
+- Corrección y desviación del plan: el plan preveía un `409` aprobando por la
+  API antes de confirmar, pero toda transición cambia el ETag, así que llega
+  como `412`. El tratamiento de `412` clasifica ahora también por estado e
+  informa de la transición hecha por otra persona en lugar de un plan cambiado.
+  Por el mismo motivo, el `409` por estado distinto solo se alcanza si el ETag
+  coincide, y se cubre con la misma clasificación.
+- Revisión de idioma de la interfaz, pedida al aprobar esta spec: se recorrieron
+  todas las páginas (proyectos, nuevo proyecto, proyecto, nueva propuesta,
+  propuestas pendiente, rechazada y aceptada, especificación en cada estado,
+  ruta inexistente, identificador no válido y error) recogiendo texto visible,
+  títulos de página, `aria-label`, `title` y `placeholder`, y se revisaron los
+  literales de los componentes y el cliente. Todo está en español, el documento
+  declara `lang="es"`, el diálogo de reconexión está traducido y no hay
+  validaciones nativas del navegador que muestren mensajes en su idioma. Los
+  Problem Details de la API están en inglés, pero la web nunca los muestra:
+  el cliente traduce cada estado HTTP a un mensaje propio.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 523 pruebas correctas (127 de dominio,
+  339 de integración y 57 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

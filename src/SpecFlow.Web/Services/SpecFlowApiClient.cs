@@ -105,6 +105,30 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             cancellationToken,
             entityTag);
 
+    public Task<ApiResult<SpecificationDto>> ApproveSpecificationAsync(
+        Guid projectId,
+        Guid proposalId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<SpecificationDto>(
+            HttpMethod.Post,
+            $"/api/projects/{projectId}/proposals/{proposalId}/specification/approve",
+            null,
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<SpecificationDto>> MarkSpecificationImplementedAsync(
+        Guid projectId,
+        Guid proposalId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<SpecificationDto>(
+            HttpMethod.Post,
+            $"/api/projects/{projectId}/proposals/{proposalId}/specification/mark-implemented",
+            null,
+            cancellationToken,
+            entityTag);
+
     public Task<ApiResult<List<AcceptanceCriterionDto>>> ListAcceptanceCriteriaAsync(
         Guid projectId,
         Guid proposalId,

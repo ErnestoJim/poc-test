@@ -85,6 +85,23 @@ else if (proposal is not null)
             </div>
         }
 
+        @if (lifecycleNotice is not null)
+        {
+            <div class="notice decision-notice" role="alert">
+                <p>@lifecycleNotice</p>
+                @if (lifecycleError is not null)
+                {
+                    <p>@lifecycleError.Message</p>
+                }
+                @if (pendingTransition is not null)
+                {
+                    <button class="button subtle" @onclick="RecoverTransitionAsync" disabled="@refreshing">
+                        @(refreshing ? "Consultando…" : "Consultar estado actual")
+                    </button>
+                }
+            </div>
+        }
+
         @if (specification is not null)
         {
             @if (editing && showSavedVersion)
@@ -176,10 +193,38 @@ else if (proposal is not null)
                             <dd>@FormatDate(verifiedAt)</dd>
                         }
                     </dl>
+                    @if (AvailableTransition is { } transition)
+                    {
+                        <div class="lifecycle-actions">
+                            @if (confirmingTransition == transition)
+                            {
+                                <div class="notice" role="alert">
+                                    <p>@ConfirmationText(transition)</p>
+                                    <div class="form-actions">
+                                        <button class="button primary" type="button" @onclick="TransitionAsync" disabled="@transitioning">
+                                            @(transitioning ? "Guardando…" : transition == Transition.Approve ? "Confirmar aprobación" : "Confirmar implementación")
+                                        </button>
+                                        <button class="button subtle" type="button" @onclick="() => confirmingTransition = null" disabled="@transitioning">Cancelar</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="button primary" type="button" @onclick="() => ConfirmTransition(transition)" disabled="@(!CanTransition)">
+                                    @(transition == Transition.Approve ? "Aprobar especificación" : "Marcar como implementada")
+                                </button>
+                                @if (!CanTransition && pendingTransition is null)
+                                {
+                                    <p class="section-hint">Termina la edición en curso para cambiar el estado.</p>
+                                }
+                            }
+                        </div>
+                    }
                 </aside>
             </div>
 
             <AcceptanceCriteriaSection ProjectId="proposal.ProjectId" ProposalId="proposal.Id" Specification="specification"
+                                       SpecificationEntityTag="@entityTag"
                                        Locked="@(ContentLocked || tasksActive)"
                                        OnActiveChanged="active => criteriaActive = active"
                                        ReloadSpecification="ReloadSpecificationAsync"
@@ -269,9 +314,26 @@ else if (proposal is not null)
     private bool criteriaActive;
     private bool tasksActive;
 
+    private enum Transition { Approve, MarkImplemented }
+
+    private Transition? confirmingTransition;
+    private Transition? pendingTransition;
+    private bool transitioning;
+    private string? lifecycleNotice;
+    private ApiError? lifecycleError;
+
+    private bool TransitionActive => confirmingTransition is not null || transitioning || pendingTransition is not null;
     private bool CanEdit => specification is { Status: "draft" } && entityTag is not null &&
-        !editing && !criteriaActive && !tasksActive && pendingRecovery is null && recovery == RecoveryKind.None;
-    private bool ContentLocked => editing || saving || refreshing || pendingRecovery is not null || recovery != RecoveryKind.None;
+        !editing && !criteriaActive && !tasksActive && !TransitionActive && pendingRecovery is null && recovery == RecoveryKind.None;
+    private bool ContentLocked => editing || saving || refreshing || pendingRecovery is not null || recovery != RecoveryKind.None ||
+        TransitionActive;
+    private bool CanTransition => entityTag is not null && !ContentLocked && !criteriaActive && !tasksActive;
+    private Transition? AvailableTransition => specification?.Status switch
+    {
+        "draft" => Transition.Approve,
+        "approved" => Transition.MarkImplemented,
+        _ => null
+    };
     private bool EditLocked => saving || refreshing || pendingRecovery is not null;
     private bool HasEditChanges => !string.Equals(editContent, specification?.Content, StringComparison.Ordinal);
     private bool loading = true;
@@ -296,6 +358,7 @@ else if (proposal is not null)
         missingSpecification = false;
         entityTag = null;
         ResetEditState();
+        ResetLifecycleState();
 
         if (!Guid.TryParse(ProjectId, out var projectId) || projectId == Guid.Empty ||
             !Guid.TryParse(ProposalId, out var proposalId) || proposalId == Guid.Empty)
@@ -613,6 +676,160 @@ else if (proposal is not null)
         }
     }
 
+    private void ResetLifecycleState()
+    {
+        confirmingTransition = null;
+        pendingTransition = null;
+        transitioning = false;
+        lifecycleNotice = null;
+        lifecycleError = null;
+    }
+
+    private void ConfirmTransition(Transition transition)
+    {
+        if (!CanTransition || AvailableTransition != transition) return;
+        lifecycleNotice = null;
+        lifecycleError = null;
+        editNotice = null;
+        confirmingTransition = transition;
+    }
+
+    // The specification ETag covers the whole plan, so If-Match ensures the transition applies to the plan on screen.
+    private async Task TransitionAsync()
+    {
+        if (confirmingTransition is not { } transition || transitioning || entityTag is null || proposal is null) return;
+        transitioning = true;
+        lifecycleNotice = null;
+        lifecycleError = null;
+        ApiError? error;
+        try
+        {
+            var result = transition == Transition.Approve
+                ? await Api.ApproveSpecificationAsync(proposal.ProjectId, proposal.Id, entityTag)
+                : await Api.MarkSpecificationImplementedAsync(proposal.ProjectId, proposal.Id, entityTag);
+            confirmingTransition = null;
+            if (result.Value is { } updated)
+            {
+                specification = updated;
+                entityTag = result.EntityTag;
+                lifecycleNotice = transition == Transition.Approve
+                    ? "Especificación aprobada. Ya puedes iniciar sus tareas."
+                    : "Especificación marcada como implementada.";
+                return;
+            }
+
+            error = result.Error;
+        }
+        finally
+        {
+            transitioning = false;
+        }
+
+        switch (error?.StatusCode)
+        {
+            case 409:
+                await ClassifyTransitionConflictAsync(transition);
+                break;
+            case 412:
+                var current = await ReloadSpecificationAsync();
+                if (current.Value is null)
+                {
+                    HandleLifecycleReloadError(transition, current.Error);
+                    return;
+                }
+                // Any transition also changes the ETag, so a status change made elsewhere arrives as 412.
+                lifecycleNotice = StatusChangeText(transition, current.Value) ??
+                    "El plan cambió desde que lo revisaste. Revisa el contenido, los criterios y las tareas actuales antes de volver a intentarlo.";
+                break;
+            case 404:
+                loadError = error;
+                break;
+            case null or >= 500:
+                pendingTransition = transition;
+                lifecycleNotice = "No se sabe si el cambio de estado se aplicó. Consulta el estado actual antes de intentarlo de nuevo.";
+                lifecycleError = error;
+                break;
+            default:
+                pendingTransition = transition;
+                lifecycleNotice = "No se pudo cambiar el estado. Consulta el estado actual antes de intentarlo de nuevo.";
+                break;
+        }
+    }
+
+    // A 409 is classified by the current status, not by the Problem Details text.
+    private async Task ClassifyTransitionConflictAsync(Transition transition)
+    {
+        var result = await ReloadSpecificationAsync();
+        if (result.Value is not { } current)
+        {
+            HandleLifecycleReloadError(transition, result.Error);
+            return;
+        }
+
+        lifecycleNotice = StatusChangeText(transition, current) ?? (transition == Transition.Approve
+            ? "Todavía no se puede aprobar. Necesita al menos un criterio de aceptación, al menos una tarea y que todos los criterios estén cubiertos por alguna tarea; revisa el resumen de cobertura de las tareas."
+            : "Todavía no se puede marcar como implementada. Todas las tareas deben estar completadas.");
+    }
+
+    // Null while the specification is still in the status the transition starts from.
+    private static string? StatusChangeText(Transition transition, SpecificationDto current)
+    {
+        var (source, target) = Statuses(transition);
+        if (current.Status == source) return null;
+        return current.Status == target
+            ? $"La especificación ya estaba {StatusPhrase(target)}. Se muestra su estado actual."
+            : $"La especificación cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+    }
+
+    private async Task RecoverTransitionAsync()
+    {
+        if (refreshing || pendingTransition is not { } transition) return;
+        refreshing = true;
+        lifecycleError = null;
+        try
+        {
+            var result = await ReloadSpecificationAsync();
+            if (result.Value is not { } current)
+            {
+                HandleLifecycleReloadError(transition, result.Error);
+                return;
+            }
+
+            pendingTransition = null;
+            var (source, target) = Statuses(transition);
+            lifecycleNotice = current.Status == target
+                ? "El cambio de estado se aplicó correctamente."
+                : current.Status == source
+                ? "El cambio de estado no se aplicó. Puedes intentarlo de nuevo."
+                : $"La especificación cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+        }
+        finally
+        {
+            refreshing = false;
+        }
+    }
+
+    private void HandleLifecycleReloadError(Transition transition, ApiError? error)
+    {
+        if (error?.StatusCode == 404)
+        {
+            loadError = error;
+            return;
+        }
+
+        pendingTransition = transition;
+        lifecycleNotice = "No se pudo comprobar el estado actual de la especificación.";
+        lifecycleError = error;
+    }
+
+    private static (string Source, string Target) Statuses(Transition transition) => transition == Transition.Approve
+        ? ("draft", "approved")
+        : ("approved", "implemented");
+
+    private static string ConfirmationText(Transition transition) => transition == Transition.Approve
+        ? "¿Aprobar la especificación? Después no se podrán modificar su contenido, sus criterios, sus tareas ni sus vínculos."
+        : "¿Marcar la especificación como implementada? No se podrá volver al estado aprobado ni cambiar el estado de sus tareas.";
+
     private async Task<ApiResult<SpecificationDto>> ReloadSpecificationAsync()
     {
         var result = proposal is null
@@ -644,6 +861,15 @@ else if (proposal is not null)
     }
 
     private static string FormatDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
+    private static string StatusPhrase(string status) => status switch
+    {
+        "draft" => "en borrador",
+        "approved" => "aprobada",
+        "implemented" => "implementada",
+        "verified" => "verificada",
+        _ => "en un estado desconocido"
+    };
 
     private static string StatusLabel(string status) => status switch
     {
