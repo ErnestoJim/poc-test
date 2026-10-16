@@ -60,15 +60,15 @@ else if (project is not null)
         }
         else if (proposals is not null)
         {
-            <div class="proposal-list">
+            <div class="entity-list">
                 @foreach (var proposal in proposals)
                 {
-                    <a class="proposal-row" href="@($"/projects/{project.Id}/proposals/{proposal.Id}")">
+                    <a class="entity-row" href="@($"/projects/{project.Id}/proposals/{proposal.Id}")">
                         <div>
                             <h3>@proposal.Title</h3>
                             <p>@(proposal.Description ?? "Sin descripción")</p>
                         </div>
-                        <span class="status @proposal.Status">@StatusLabel(proposal.Status)</span>
+                        <span class="status @proposal.Status">@DisplayText.ProposalStatus(proposal.Status)</span>
                     </a>
                 }
             </div>
@@ -107,15 +107,15 @@ else if (project is not null)
         }
         else if (decisions is not null)
         {
-            <div class="proposal-list">
+            <div class="entity-list">
                 @foreach (var decision in decisions)
                 {
-                    <a class="proposal-row" href="@($"/projects/{project.Id}/decisions/{decision.Id}")">
+                    <a class="entity-row" href="@($"/projects/{project.Id}/decisions/{decision.Id}")">
                         <div>
                             <h3>@decision.Title</h3>
-                            <p>@(decision.DecidedAtUtc is { } decidedAt ? $"Decidida el {decidedAt.ToLocalTime():dd/MM/yyyy}" : $"Creada el {decision.CreatedAtUtc.ToLocalTime():dd/MM/yyyy}")</p>
+                            <p>@(decision.DecidedAtUtc is { } decidedAt ? $"Decidida el {DisplayText.Date(decidedAt)}" : $"Creada el {DisplayText.Date(decision.CreatedAtUtc)}")</p>
                         </div>
-                        <span class="status @decision.Status">@DecisionStatusLabel(decision.Status)</span>
+                        <span class="status @decision.Status">@DisplayText.DecisionStatus(decision.Status)</span>
                     </a>
                 }
             </div>
@@ -149,9 +149,9 @@ else if (project is not null)
         decisionError = null;
         error = null;
         proposalError = null;
-        if (!Guid.TryParse(ProjectId, out var id) || id == Guid.Empty)
+        if (!RouteIds.TryParse(ProjectId, out var id))
         {
-            error = new ApiError(400, "El identificador del proyecto no es válido.", new HashSet<string>());
+            error = RouteIds.InvalidProject;
         }
         else
         {
@@ -177,20 +177,5 @@ else if (project is not null)
         decisionError = result.Error;
     }
 
-    private static string DecisionStatusLabel(string status) => status switch
-    {
-        "draft" => "Borrador",
-        "accepted" => "Aceptada",
-        "rejected" => "Rechazada",
-        "superseded" => "Sustituida",
-        _ => "Estado desconocido"
-    };
 
-    private static string StatusLabel(string status) => status switch
-    {
-        "pending" => "Pendiente",
-        "accepted" => "Aceptada",
-        "rejected" => "Rechazada",
-        _ => "Estado desconocido"
-    };
 }

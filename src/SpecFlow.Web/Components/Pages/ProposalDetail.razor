@@ -28,25 +28,10 @@ else if (proposal is not null)
             <p class="eyebrow">Propuesta · <a href="@($"/projects/{ProjectId}")">@project?.Name</a></p>
             <h1>@proposal.Title</h1>
         </div>
-        <span class="status large @proposal.Status">@StatusLabel(proposal.Status)</span>
+        <span class="status large @proposal.Status">@DisplayText.ProposalStatus(proposal.Status)</span>
     </div>
 
-    @if (decisionNotice is not null)
-    {
-        <div class="notice decision-notice" role="alert">
-            <p>@decisionNotice</p>
-            @if (actionError is not null && requiresRefresh)
-            {
-                <p>@actionError.Message</p>
-            }
-            @if (requiresRefresh)
-            {
-                <button class="button subtle" @onclick="RefreshProposalAsync" disabled="@refreshing">
-                    @(refreshing ? "Actualizando…" : "Consultar estado actual")
-                </button>
-            }
-        </div>
-    }
+    <StatusNotice Message="@decisionNotice" Error="@(requiresRefresh ? actionError : null)" CanRecover="@(requiresRefresh)" Refreshing="@refreshing" OnRecover="RefreshProposalAsync" RefreshingLabel="Actualizando…" />
 
     @if (proposal.Status == "pending" && !requiresRefresh)
     {
@@ -124,11 +109,11 @@ else if (proposal is not null)
             <h2>Información</h2>
             <dl>
                 <dt>Creada</dt>
-                <dd>@proposal.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+                <dd>@DisplayText.DateTime(proposal.CreatedAtUtc)</dd>
                 @if (proposal.DecidedAtUtc is { } decidedAt)
                 {
                     <dt>Decidida</dt>
-                    <dd>@decidedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+                    <dd>@DisplayText.DateTime(decidedAt)</dd>
                 }
                 @if (proposal.RejectionReason is not null)
                 {
@@ -176,10 +161,9 @@ else if (proposal is not null)
         acceptPromptOpen = false;
         rejectFormOpen = false;
         requiresRefresh = false;
-        if (!Guid.TryParse(ProjectId, out var projectId) || projectId == Guid.Empty ||
-            !Guid.TryParse(ProposalId, out var proposalId) || proposalId == Guid.Empty)
+        if (!RouteIds.TryParse(ProjectId, out var projectId) || !RouteIds.TryParse(ProposalId, out var proposalId))
         {
-            error = new ApiError(400, "El identificador de la ruta no es válido.", new HashSet<string>());
+            error = RouteIds.InvalidRoute;
         }
         else
         {
@@ -333,11 +317,4 @@ else if (proposal is not null)
         }
     }
 
-    private static string StatusLabel(string status) => status switch
-    {
-        "pending" => "Pendiente",
-        "accepted" => "Aceptada",
-        "rejected" => "Rechazada",
-        _ => "Estado desconocido"
-    };
 }

@@ -45,6 +45,11 @@ dotnet test SpecFlow.slnx --no-build
 dotnet format SpecFlow.slnx --verify-no-changes --no-restore
 ```
 
+Las pruebas de `tests/SpecFlow.Web.Tests` cubren el cliente HTTP de la web y,
+con bUnit, los componentes de la vista de especificación frente a una API
+simulada, incluidas las recuperaciones tras un conflicto o una pérdida de
+conexión y el bloqueo entre ediciones.
+
 ## Ejecutar
 
 ```bash

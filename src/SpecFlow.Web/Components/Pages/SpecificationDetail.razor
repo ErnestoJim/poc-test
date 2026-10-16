@@ -20,14 +20,7 @@ else if (loadError is not null)
         }
         <a class="button subtle" href="/projects">Volver a proyectos</a>
     </div>
-    @if (unsavedContent is not null)
-    {
-        <section class="detail-card unsaved-content" aria-label="Texto local no guardado">
-            <h2>Texto local no guardado</h2>
-            <p>No se pudo guardar. Puedes copiarlo antes de salir.</p>
-            <pre class="markdown-source">@unsavedContent</pre>
-        </section>
-    }
+    <UnsavedTextBlock Title="Texto local no guardado" Text="@unsavedContent" PageLevel />
 }
 else if (proposal is not null)
 {
@@ -38,7 +31,7 @@ else if (proposal is not null)
         </div>
         @if (specification is not null)
         {
-            <span class="status large @specification.Status">@StatusLabel(specification.Status)</span>
+            <span class="status large @specification.Status">@DisplayText.SpecificationStatus(specification.Status)</span>
         }
     </div>
 
@@ -51,56 +44,11 @@ else if (proposal is not null)
     }
     else
     {
-        @if (statusNotice is not null)
-        {
-            <div class="notice decision-notice" role="alert">
-                <p>@statusNotice</p>
-                @if (refreshError is not null)
-                {
-                    <p>@refreshError.Message</p>
-                }
-                @if (recovery != RecoveryKind.None)
-                {
-                    <button class="button subtle" @onclick="RefreshStateAsync" disabled="@refreshing">
-                        @(refreshing ? "Consultando…" : "Consultar estado actual")
-                    </button>
-                }
-            </div>
-        }
+        <StatusNotice Message="@statusNotice" Error="@refreshError" CanRecover="@(recovery != RecoveryKind.None)" Refreshing="@refreshing" OnRecover="RefreshStateAsync" />
 
-        @if (editNotice is not null)
-        {
-            <div class="notice decision-notice" role="alert">
-                <p>@editNotice</p>
-                @if (editRefreshError is not null)
-                {
-                    <p>@editRefreshError.Message</p>
-                }
-                @if (pendingRecovery is not null)
-                {
-                    <button class="button subtle" @onclick="RecoverEditAsync" disabled="@refreshing">
-                        @(refreshing ? "Consultando…" : "Consultar estado actual")
-                    </button>
-                }
-            </div>
-        }
+        <StatusNotice Message="@editNotice" Error="@editRefreshError" CanRecover="@(pendingRecovery is not null)" Refreshing="@refreshing" OnRecover="RecoverEditAsync" />
 
-        @if (lifecycleNotice is not null)
-        {
-            <div class="notice decision-notice" role="alert">
-                <p>@lifecycleNotice</p>
-                @if (lifecycleError is not null)
-                {
-                    <p>@lifecycleError.Message</p>
-                }
-                @if (pendingTransition is not null)
-                {
-                    <button class="button subtle" @onclick="RecoverTransitionAsync" disabled="@refreshing">
-                        @(refreshing ? "Consultando…" : "Consultar estado actual")
-                    </button>
-                }
-            </div>
-        }
+        <StatusNotice Message="@lifecycleNotice" Error="@lifecycleError" CanRecover="@(pendingTransition is not null)" Refreshing="@refreshing" OnRecover="RecoverTransitionAsync" />
 
         @if (specification is not null)
         {
@@ -108,7 +56,7 @@ else if (proposal is not null)
             {
                 <section class="detail-card saved-version" aria-label="Versión guardada actual">
                     <h2>Versión guardada actual</h2>
-                    <p>Actualizada el @FormatDate(specification.UpdatedAtUtc). Tu texto sigue en el editor sin guardar.</p>
+                    <p>Actualizada el @DisplayText.DateTime(specification.UpdatedAtUtc). Tu texto sigue en el editor sin guardar.</p>
                     <pre class="markdown-source">@specification.Content</pre>
                 </section>
             }
@@ -131,13 +79,7 @@ else if (proposal is not null)
                         </div>
                         @if (confirmDiscard)
                         {
-                            <div class="notice" role="alert">
-                                <p>¿Descartar los cambios sin guardar?</p>
-                                <div class="form-actions">
-                                    <button class="button primary" type="button" @onclick="ExitEdit">Descartar cambios</button>
-                                    <button class="button subtle" type="button" @onclick="() => confirmDiscard = false">Seguir editando</button>
-                                </div>
-                            </div>
+                            <DiscardConfirmation OnDiscard="ExitEdit" OnKeep="() => confirmDiscard = false" />
                         }
                         else
                         {
@@ -174,23 +116,23 @@ else if (proposal is not null)
                     <h2>Información</h2>
                     <dl>
                         <dt>Creada</dt>
-                        <dd>@FormatDate(specification.CreatedAtUtc)</dd>
+                        <dd>@DisplayText.DateTime(specification.CreatedAtUtc)</dd>
                         <dt>Actualizada</dt>
-                        <dd>@FormatDate(specification.UpdatedAtUtc)</dd>
+                        <dd>@DisplayText.DateTime(specification.UpdatedAtUtc)</dd>
                         @if (specification.ApprovedAtUtc is { } approvedAt)
                         {
                             <dt>Aprobada</dt>
-                            <dd>@FormatDate(approvedAt)</dd>
+                            <dd>@DisplayText.DateTime(approvedAt)</dd>
                         }
                         @if (specification.ImplementedAtUtc is { } implementedAt)
                         {
                             <dt>Implementada</dt>
-                            <dd>@FormatDate(implementedAt)</dd>
+                            <dd>@DisplayText.DateTime(implementedAt)</dd>
                         }
                         @if (specification.VerifiedAtUtc is { } verifiedAt)
                         {
                             <dt>Verificada</dt>
-                            <dd>@FormatDate(verifiedAt)</dd>
+                            <dd>@DisplayText.DateTime(verifiedAt)</dd>
                         }
                     </dl>
                     @if (AvailableTransition is { } transition)
@@ -268,14 +210,7 @@ else if (proposal is not null)
             </form>
         }
 
-        @if (unsavedContent is not null)
-        {
-            <section class="detail-card unsaved-content" aria-label="Texto local del intento">
-                <h2>Texto local del intento</h2>
-                <p>Compáralo con la versión guardada arriba. Puedes copiarlo antes de salir.</p>
-                <pre class="markdown-source">@unsavedContent</pre>
-            </section>
-        }
+        <UnsavedTextBlock Title="Texto local del intento" Text="@unsavedContent" Hint="Compáralo con la versión guardada arriba. Puedes copiarlo antes de salir." PageLevel />
     }
 }
 
@@ -361,10 +296,9 @@ else if (proposal is not null)
         ResetEditState();
         ResetLifecycleState();
 
-        if (!Guid.TryParse(ProjectId, out var projectId) || projectId == Guid.Empty ||
-            !Guid.TryParse(ProposalId, out var proposalId) || proposalId == Guid.Empty)
+        if (!RouteIds.TryParse(ProjectId, out var projectId) || !RouteIds.TryParse(ProposalId, out var proposalId))
         {
-            loadError = new ApiError(400, "El identificador de la ruta no es válido.", new HashSet<string>());
+            loadError = RouteIds.InvalidRoute;
         }
         else
         {
@@ -787,8 +721,8 @@ else if (proposal is not null)
         var (source, target) = Statuses(transition);
         if (current.Status == source) return null;
         return current.Status == target
-            ? $"La especificación ya estaba {StatusPhrase(target)}. Se muestra su estado actual."
-            : $"La especificación cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+            ? $"La especificación ya estaba {DisplayText.SpecificationStatusPhrase(target)}. Se muestra su estado actual."
+            : $"La especificación cambió de estado y ahora está {DisplayText.SpecificationStatusPhrase(current.Status)}.";
     }
 
     private async Task RecoverTransitionAsync()
@@ -811,7 +745,7 @@ else if (proposal is not null)
                 ? "El cambio de estado se aplicó correctamente."
                 : current.Status == source
                 ? "El cambio de estado no se aplicó. Puedes intentarlo de nuevo."
-                : $"La especificación cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+                : $"La especificación cambió de estado y ahora está {DisplayText.SpecificationStatusPhrase(current.Status)}.";
         }
         finally
         {
@@ -863,7 +797,7 @@ else if (proposal is not null)
     private async Task<ApiResult<SpecificationDto>> ReloadSpecificationAsync()
     {
         var result = proposal is null
-            ? new ApiResult<SpecificationDto>(null, new ApiError(null, "La propuesta no está disponible.", new HashSet<string>()))
+            ? new ApiResult<SpecificationDto>(null, ApiError.Local(null, "La propuesta no está disponible."))
             : await Api.GetSpecificationAsync(proposal.ProjectId, proposal.Id);
         if (result.Value is { } current)
         {
@@ -874,7 +808,7 @@ else if (proposal is not null)
         return result;
     }
 
-    private void HandleSectionContextLost(AcceptanceCriteriaSection.ContextLost lost)
+    private void HandleSectionContextLost(ContextLost lost)
     {
         unsavedContent = lost.LocalText;
         loadError = lost.Error;
@@ -890,23 +824,6 @@ else if (proposal is not null)
         }
     }
 
-    private static string FormatDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
 
-    private static string StatusPhrase(string status) => status switch
-    {
-        "draft" => "en borrador",
-        "approved" => "aprobada",
-        "implemented" => "implementada",
-        "verified" => "verificada",
-        _ => "en un estado desconocido"
-    };
 
-    private static string StatusLabel(string status) => status switch
-    {
-        "draft" => "Borrador",
-        "approved" => "Aprobada",
-        "implemented" => "Implementada",
-        "verified" => "Verificada",
-        _ => "Estado desconocido"
-    };
 }

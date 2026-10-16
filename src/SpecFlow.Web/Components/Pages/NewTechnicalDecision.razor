@@ -95,9 +95,9 @@
     {
         loading = true;
         projectError = null;
-        if (!Guid.TryParse(ProjectId, out var id) || id == Guid.Empty)
+        if (!RouteIds.TryParse(ProjectId, out var id))
         {
-            projectError = new ApiError(400, "El identificador del proyecto no es válido.", new HashSet<string>());
+            projectError = RouteIds.InvalidProject;
         }
         else
         {

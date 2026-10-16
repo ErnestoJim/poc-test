@@ -67,6 +67,10 @@ public sealed record TaskAcceptanceCriteriaDto(IReadOnlyList<Guid> AcceptanceCri
 public sealed record ApiError(int? StatusCode, string Message, IReadOnlySet<string> Fields)
 {
     public bool HasField(string name) => Fields.Contains(name);
+
+    // An error produced by the web itself rather than read from a Problem Details response.
+    public static ApiError Local(int? statusCode, string message, params string[] fields) =>
+        new(statusCode, message, new HashSet<string>(fields));
 }
 
 public sealed record ApiResult<T>(T? Value, ApiError? Error, string? EntityTag = null)

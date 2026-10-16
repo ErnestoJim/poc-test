@@ -1,0 +1,15 @@
+@* Asks before discarding unsaved changes in a form. *@
+<div class="notice" role="alert">
+    <p>@Question</p>
+    <div class="form-actions">
+        <button class="button primary" type="button" @onclick="OnDiscard">Descartar cambios</button>
+        <button class="button subtle" type="button" @onclick="OnKeep">@KeepLabel</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Question { get; set; } = "¿Descartar los cambios sin guardar?";
+    [Parameter] public string KeepLabel { get; set; } = "Seguir editando";
+    [Parameter] public EventCallback OnDiscard { get; set; }
+    [Parameter] public EventCallback OnKeep { get; set; }
+}

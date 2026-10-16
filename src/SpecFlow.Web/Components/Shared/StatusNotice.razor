@@ -1,0 +1,27 @@
+@using SpecFlow.Web.Services
+@* A notice after an operation; offers to check the current state when the outcome is unknown. *@
+@if (Message is not null)
+{
+    <div class="notice decision-notice" role="alert">
+        <p>@Message</p>
+        @if (Error is not null)
+        {
+            <p>@Error.Message</p>
+        }
+        @if (CanRecover)
+        {
+            <button class="button subtle" @onclick="OnRecover" disabled="@Refreshing">
+                @(Refreshing ? RefreshingLabel : "Consultar estado actual")
+            </button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public ApiError? Error { get; set; }
+    [Parameter] public bool CanRecover { get; set; }
+    [Parameter] public bool Refreshing { get; set; }
+    [Parameter] public EventCallback OnRecover { get; set; }
+    [Parameter] public string RefreshingLabel { get; set; } = "Consultando…";
+}

@@ -21,14 +21,7 @@ else if (loadError is not null)
         }
         <a class="button subtle" href="@($"/projects/{ProjectId}")">Volver al proyecto</a>
     </div>
-    @if (unsavedText is not null)
-    {
-        <section class="detail-card unsaved-content" aria-label="Texto no guardado">
-            <h2>Texto no guardado</h2>
-            <p>No se pudo guardar. Puedes copiarlo antes de salir.</p>
-            <pre class="markdown-source">@unsavedText</pre>
-        </section>
-    }
+    <UnsavedTextBlock Title="Texto no guardado" Text="@unsavedText" PageLevel />
 }
 else if (decision is not null)
 {
@@ -37,25 +30,10 @@ else if (decision is not null)
             <p class="eyebrow">Decisión técnica · <a href="@($"/projects/{ProjectId}")">@project?.Name</a></p>
             <h1>@decision.Title</h1>
         </div>
-        <span class="status large @decision.Status">@StatusLabel(decision.Status)</span>
+        <span class="status large @decision.Status">@DisplayText.DecisionStatus(decision.Status)</span>
     </div>
 
-    @if (notice is not null)
-    {
-        <div class="notice decision-notice" role="alert">
-            <p>@notice</p>
-            @if (noticeError is not null)
-            {
-                <p>@noticeError.Message</p>
-            }
-            @if (pending is not null)
-            {
-                <button class="button subtle" @onclick="RecoverAsync" disabled="@refreshing">
-                    @(refreshing ? "Consultando…" : "Consultar estado actual")
-                </button>
-            }
-        </div>
-    }
+    <StatusNotice Message="@notice" Error="@noticeError" CanRecover="@(pending is not null)" Refreshing="@refreshing" OnRecover="RecoverAsync" />
 
     @if (active == Action.None && pending is null)
     {
@@ -161,10 +139,10 @@ else if (decision is not null)
                         @foreach (var candidate in Candidates)
                         {
                             var candidateId = candidate.Id;
-                            <label class="verification-option replacement-option">
+                            <label class="option-inline replacement-option">
                                 <input type="radio" name="replacement-decision" checked="@(replacementId == candidateId)"
                                        @onchange="() => replacementId = candidateId" />
-                                <span>@candidate.Title <small>(aceptada el @FormatDate(candidate.DecidedAtUtc!.Value))</small></span>
+                                <span>@candidate.Title <small>(aceptada el @DisplayText.DateTime(candidate.DecidedAtUtc!.Value))</small></span>
                             </label>
                         }
                     </fieldset>
@@ -182,8 +160,8 @@ else if (decision is not null)
     {
         <section class="detail-card saved-version" aria-label="Versión guardada actual">
             <h2>Versión guardada actual</h2>
-            <p>Actualizada el @FormatDate(savedVersion.UpdatedAtUtc). Tu texto sigue en el formulario sin guardar.</p>
-            <p class="task-title">@savedVersion.Title</p>
+            <p>Actualizada el @DisplayText.DateTime(savedVersion.UpdatedAtUtc). Tu texto sigue en el formulario sin guardar.</p>
+            <p class="item-title">@savedVersion.Title</p>
             <pre class="markdown-source">@savedVersion.Content</pre>
         </section>
     }
@@ -217,13 +195,7 @@ else if (decision is not null)
                 </div>
                 @if (confirmDiscard)
                 {
-                    <div class="notice" role="alert">
-                        <p>¿Descartar los cambios sin guardar?</p>
-                        <div class="form-actions">
-                            <button class="button primary" type="button" @onclick="Discard">Descartar cambios</button>
-                            <button class="button subtle" type="button" @onclick="() => confirmDiscard = false">Seguir editando</button>
-                        </div>
-                    </div>
+                    <DiscardConfirmation OnDiscard="Discard" OnKeep="() => confirmDiscard = false" />
                 }
                 else
                 {
@@ -254,13 +226,13 @@ else if (decision is not null)
             <h2>Información</h2>
             <dl>
                 <dt>Creada</dt>
-                <dd>@FormatDate(decision.CreatedAtUtc)</dd>
+                <dd>@DisplayText.DateTime(decision.CreatedAtUtc)</dd>
                 <dt>Actualizada</dt>
-                <dd>@FormatDate(decision.UpdatedAtUtc)</dd>
+                <dd>@DisplayText.DateTime(decision.UpdatedAtUtc)</dd>
                 @if (decision.DecidedAtUtc is { } decidedAt)
                 {
                     <dt>@(decision.Status == "rejected" ? "Rechazada" : "Aceptada")</dt>
-                    <dd>@FormatDate(decidedAt)</dd>
+                    <dd>@DisplayText.DateTime(decidedAt)</dd>
                 }
                 @if (decision.RejectionReason is not null)
                 {
@@ -270,7 +242,7 @@ else if (decision is not null)
                 @if (decision.SupersededAtUtc is { } supersededAt)
                 {
                     <dt>Sustituida</dt>
-                    <dd>@FormatDate(supersededAt)</dd>
+                    <dd>@DisplayText.DateTime(supersededAt)</dd>
                 }
                 @if (decision.SupersededByDecisionId is { } replacement)
                 {
@@ -281,14 +253,7 @@ else if (decision is not null)
         </aside>
     </div>
 
-    @if (unsavedText is not null)
-    {
-        <section class="detail-card unsaved-content" aria-label="Texto no guardado">
-            <h2>Texto no guardado</h2>
-            <p>No se pudo guardar. Puedes copiarlo antes de salir.</p>
-            <pre class="markdown-source">@unsavedText</pre>
-        </section>
-    }
+    <UnsavedTextBlock Title="Texto no guardado" Text="@unsavedText" PageLevel />
 }
 
 @code {
@@ -354,10 +319,9 @@ else if (decision is not null)
         pending = null;
         notice = null;
         noticeError = null;
-        if (!Guid.TryParse(ProjectId, out projectId) || projectId == Guid.Empty ||
-            !Guid.TryParse(DecisionId, out decisionId) || decisionId == Guid.Empty)
+        if (!RouteIds.TryParse(ProjectId, out projectId) || !RouteIds.TryParse(DecisionId, out decisionId))
         {
-            loadError = new ApiError(400, "El identificador de la ruta no es válido.", new HashSet<string>());
+            loadError = RouteIds.InvalidRoute;
         }
         else
         {
@@ -581,7 +545,7 @@ else if (decision is not null)
             unsavedText = LocalText() ?? unsavedText;
             Adopt(current, result.EntityTag);
             ResetAction();
-            notice = $"La decisión técnica cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+            notice = $"La decisión técnica cambió de estado y ahora está {DisplayText.DecisionStatusPhrase(current.Status)}.";
             await LoadProjectDecisionsAsync();
             return;
         }
@@ -665,7 +629,7 @@ else if (decision is not null)
                 unsavedText = LocalText() ?? unsavedText;
                 Adopt(current, result.EntityTag);
                 ResetAction();
-                notice = $"El cambio no se aplicó. La decisión técnica cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+                notice = $"El cambio no se aplicó. La decisión técnica cambió de estado y ahora está {DisplayText.DecisionStatusPhrase(current.Status)}.";
                 await LoadProjectDecisionsAsync();
                 return;
             }
@@ -726,23 +690,5 @@ else if (decision is not null)
 
     private string? DecisionTitle(Guid id) => projectDecisions?.FirstOrDefault(d => d.Id == id)?.Title;
 
-    private static string FormatDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
 
-    private static string StatusLabel(string status) => status switch
-    {
-        "draft" => "Borrador",
-        "accepted" => "Aceptada",
-        "rejected" => "Rechazada",
-        "superseded" => "Sustituida",
-        _ => "Estado desconocido"
-    };
-
-    private static string StatusPhrase(string status) => status switch
-    {
-        "draft" => "en borrador",
-        "accepted" => "aceptada",
-        "rejected" => "rechazada",
-        "superseded" => "sustituida",
-        _ => "en un estado desconocido"
-    };
 }

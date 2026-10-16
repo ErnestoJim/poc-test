@@ -487,7 +487,7 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             {
                 var value = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
                 return value is null
-                    ? new ApiResult<T>(default, new ApiError((int)response.StatusCode, "La API devolvió una respuesta vacía.", new HashSet<string>()))
+                    ? new ApiResult<T>(default, ApiError.Local((int)response.StatusCode, "La API devolvió una respuesta vacía."))
                     : new ApiResult<T>(value, null, response.Headers.ETag?.ToString());
             }
 
@@ -495,15 +495,15 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
         }
         catch (HttpRequestException)
         {
-            return new ApiResult<T>(default, new ApiError(null, "No se puede conectar con la API. Comprueba que esté en ejecución.", new HashSet<string>()));
+            return new ApiResult<T>(default, ApiError.Local(null, "No se puede conectar con la API. Comprueba que esté en ejecución."));
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new ApiResult<T>(default, new ApiError(null, "La API tardó demasiado en responder.", new HashSet<string>()));
+            return new ApiResult<T>(default, ApiError.Local(null, "La API tardó demasiado en responder."));
         }
         catch (JsonException)
         {
-            return new ApiResult<T>(default, new ApiError(null, "La API devolvió una respuesta no válida.", new HashSet<string>()));
+            return new ApiResult<T>(default, ApiError.Local(null, "La API devolvió una respuesta no válida."));
         }
     }
 

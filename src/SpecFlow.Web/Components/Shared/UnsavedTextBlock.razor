@@ -1,0 +1,27 @@
+@* Keeps text that could not be saved visible so it can be copied. *@
+@if (Text is not null)
+{
+    <section class="detail-card unsaved-content" aria-label="@Title">
+        @if (PageLevel)
+        {
+            <h2>@Title</h2>
+            <p>@Hint</p>
+            <pre class="markdown-source">@Text</pre>
+        }
+        else
+        {
+            <h3>@Title</h3>
+            <p>@Hint</p>
+            <p class="item-content">@Text</p>
+        }
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string Hint { get; set; } = "No se pudo guardar. Puedes copiarlo antes de salir.";
+
+    // Page-level blocks show Markdown source under an h2; section blocks show plain text under an h3.
+    [Parameter] public bool PageLevel { get; set; }
+}

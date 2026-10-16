@@ -88,7 +88,7 @@ implementación.
 | [0026](0026-web-specification-lifecycle/spec.md) | Aprobar y marcar implementada una especificación desde la interfaz web | Implementada |
 | [0027](0027-web-verification/spec.md) | Verificar criterios y la especificación desde la interfaz web | Implementada |
 | [0028](0028-web-technical-decisions/spec.md) | Gestionar decisiones técnicas desde la interfaz web | Implementada |
-| [0029](0029-web-maintainability-checkpoint/spec.md) | Checkpoint de mantenibilidad de la interfaz web | Aprobada para implementación |
+| [0029](0029-web-maintainability-checkpoint/spec.md) | Checkpoint de mantenibilidad de la interfaz web | Implementada |
 
 ## Crear la siguiente spec
 

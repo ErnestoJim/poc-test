@@ -43,7 +43,7 @@ else if (projects is not null)
                 <span class="card-marker">P</span>
                 <h2>@project.Name</h2>
                 <p>@(project.Description ?? "Sin descripción")</p>
-                <span class="card-foot">Creado el @project.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy") <span aria-hidden="true">→</span></span>
+                <span class="card-foot">Creado el @DisplayText.Date(project.CreatedAtUtc) <span aria-hidden="true">→</span></span>
             </a>
         }
     </div>
