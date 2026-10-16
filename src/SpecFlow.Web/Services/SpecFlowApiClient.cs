@@ -364,6 +364,91 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             cancellationToken,
             entityTag);
 
+    public Task<ApiResult<List<TechnicalDecisionDto>>> ListTechnicalDecisionsAsync(
+        Guid projectId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<List<TechnicalDecisionDto>>(HttpMethod.Get, TechnicalDecisionsPath(projectId), null, cancellationToken);
+
+    public Task<ApiResult<TechnicalDecisionDto>> CreateTechnicalDecisionAsync(
+        Guid projectId,
+        string? title,
+        string? content,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TechnicalDecisionDto>(HttpMethod.Post, TechnicalDecisionsPath(projectId), new { title, content }, cancellationToken);
+
+    public Task<ApiResult<TechnicalDecisionDto>> GetTechnicalDecisionAsync(
+        Guid projectId,
+        Guid decisionId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TechnicalDecisionDto>(HttpMethod.Get, $"{TechnicalDecisionsPath(projectId)}/{decisionId}", null, cancellationToken);
+
+    public Task<ApiResult<TechnicalDecisionDto>> UpdateTechnicalDecisionAsync(
+        Guid projectId,
+        Guid decisionId,
+        string? title,
+        string? content,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TechnicalDecisionDto>(
+            HttpMethod.Put,
+            $"{TechnicalDecisionsPath(projectId)}/{decisionId}",
+            new { title, content },
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<TechnicalDecisionDto>> AcceptTechnicalDecisionAsync(
+        Guid projectId,
+        Guid decisionId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TechnicalDecisionDto>(
+            HttpMethod.Post,
+            $"{TechnicalDecisionsPath(projectId)}/{decisionId}/accept",
+            null,
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<TechnicalDecisionDto>> RejectTechnicalDecisionAsync(
+        Guid projectId,
+        Guid decisionId,
+        string? reason,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TechnicalDecisionDto>(
+            HttpMethod.Post,
+            $"{TechnicalDecisionsPath(projectId)}/{decisionId}/reject",
+            new { reason },
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<TechnicalDecisionDto>> SupersedeTechnicalDecisionAsync(
+        Guid projectId,
+        Guid decisionId,
+        Guid replacementDecisionId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TechnicalDecisionDto>(
+            HttpMethod.Post,
+            $"{TechnicalDecisionsPath(projectId)}/{decisionId}/supersede",
+            new { replacementDecisionId },
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<bool>> DeleteTechnicalDecisionAsync(
+        Guid projectId,
+        Guid decisionId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<bool>(
+            HttpMethod.Delete,
+            $"{TechnicalDecisionsPath(projectId)}/{decisionId}",
+            null,
+            cancellationToken,
+            entityTag);
+
+    private static string TechnicalDecisionsPath(Guid projectId) =>
+        $"/api/projects/{projectId}/technical-decisions";
+
     private static string ImplementationTasksPath(Guid projectId, Guid proposalId) =>
         $"/api/projects/{projectId}/proposals/{proposalId}/specification/tasks";
 

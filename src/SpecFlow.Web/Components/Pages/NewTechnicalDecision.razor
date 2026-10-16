@@ -1,0 +1,141 @@
+@page "/projects/{ProjectId}/decisions/new"
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva decisión técnica · SpecFlow</PageTitle>
+
+<div class="narrow-page">
+    <a class="back-link" href="@($"/projects/{ProjectId}")">← Volver al proyecto</a>
+    @if (loading)
+    {
+        <p class="notice">Cargando proyecto…</p>
+    }
+    else if (projectError is not null)
+    {
+        <div class="notice error" role="alert">
+            <p>@projectError.Message</p>
+            @if (projectError.StatusCode is null)
+            {
+                <button class="button subtle" @onclick="LoadProjectAsync">Reintentar</button>
+            }
+            <a class="button subtle" href="/projects">Volver a proyectos</a>
+        </div>
+    }
+    else if (project is not null)
+    {
+        <p class="eyebrow">@project.Name</p>
+        <h1>Nueva decisión técnica</h1>
+        <p class="lead">Registra el contexto, la decisión y sus consecuencias. Podrás revisarla antes de aceptarla.</p>
+
+        <form class="form-card" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+            <div class="field">
+                <label for="decision-title">Título <span class="required">*</span></label>
+                <input id="decision-title" @bind="title" @bind:event="oninput" @bind:after="ClearFieldError" disabled="@Locked"
+                       aria-invalid="@FieldValidation.AriaInvalid(error, "title")"
+                       aria-describedby="@FieldValidation.DescribedBy(error, "title", "decision-title")" />
+                <small id="decision-title-hint">Entre 1 y 200 caracteres.</small>
+                @if (error?.HasField("title") == true)
+                {
+                    <span id="decision-title-error" class="field-error">Introduce un título de hasta 200 caracteres.</span>
+                }
+            </div>
+            <div class="field">
+                <label for="decision-content">Contenido Markdown <span class="required">*</span></label>
+                <textarea id="decision-content" class="markdown-editor" @bind="content" @bind:event="oninput" @bind:after="ClearFieldError"
+                          rows="16" disabled="@Locked"
+                          aria-invalid="@FieldValidation.AriaInvalid(error, "content")"
+                          aria-describedby="@FieldValidation.DescribedBy(error, "content", "decision-content")"></textarea>
+                <small id="decision-content-hint">Hasta 50.000 caracteres. El texto se guardará tal como lo envíes.</small>
+                @if (error?.HasField("content") == true)
+                {
+                    <span id="decision-content-error" class="field-error">Introduce un contenido de hasta 50.000 caracteres.</span>
+                }
+            </div>
+            @if (uncertain)
+            {
+                <div class="notice error" role="alert">
+                    <p>No se sabe si la decisión se registró. @error?.Message</p>
+                    <p>Comprueba la lista del proyecto antes de volver a intentarlo para no duplicarla.</p>
+                    <a class="button subtle" href="@($"/projects/{ProjectId}")">Ver decisiones del proyecto</a>
+                </div>
+            }
+            else if (error is not null && !error.HasField("title") && !error.HasField("content"))
+            {
+                <div class="notice error" role="alert">
+                    <p>@error.Message</p>
+                </div>
+            }
+            <div class="form-actions">
+                <button class="button primary" type="submit" disabled="@Locked">@(saving ? "Registrando…" : "Registrar decisión")</button>
+                <a class="button subtle" href="@($"/projects/{ProjectId}")">Cancelar</a>
+            </div>
+        </form>
+    }
+</div>
+
+@code {
+    [Parameter] public string ProjectId { get; set; } = "";
+
+    private ProjectDto? project;
+    private ApiError? projectError;
+    private ApiError? error;
+    private string? title;
+    private string? content;
+    private bool loading = true;
+    private bool saving;
+    private bool uncertain;
+
+    // Nothing is resent once the outcome of a creation is unknown.
+    private bool Locked => saving || uncertain;
+
+    protected override Task OnParametersSetAsync() => LoadProjectAsync();
+
+    private async Task LoadProjectAsync()
+    {
+        loading = true;
+        projectError = null;
+        if (!Guid.TryParse(ProjectId, out var id) || id == Guid.Empty)
+        {
+            projectError = new ApiError(400, "El identificador del proyecto no es válido.", new HashSet<string>());
+        }
+        else
+        {
+            var result = await Api.GetProjectAsync(id);
+            project = result.Value;
+            projectError = result.Error;
+        }
+        loading = false;
+    }
+
+    private void ClearFieldError()
+    {
+        if (error?.HasField("title") == true || error?.HasField("content") == true)
+        {
+            error = null;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (Locked || project is null) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var result = await Api.CreateTechnicalDecisionAsync(project.Id, title, content);
+            if (result.Value is { } decision)
+            {
+                Navigation.NavigateTo($"/projects/{project.Id}/decisions/{decision.Id}");
+                return;
+            }
+
+            error = result.Error;
+            uncertain = result.Error?.StatusCode is null or >= 500;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

@@ -74,15 +74,68 @@ else if (project is not null)
             </div>
         }
     </section>
+
+    <section class="section-block" aria-labelledby="decisions-title">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Contexto técnico</p>
+                <h2 id="decisions-title">Decisiones técnicas</h2>
+            </div>
+            @if (decisions is not null)
+            {
+                <span class="count-pill">@decisions.Count</span>
+            }
+        </div>
+        @if (Aviso == "decision-eliminada")
+        {
+            <p class="notice" role="status">Decisión técnica eliminada.</p>
+        }
+        @if (decisionError is not null)
+        {
+            <div class="notice error" role="alert">
+                <p>No se pudieron cargar las decisiones técnicas. @decisionError.Message</p>
+                <button class="button subtle" @onclick="LoadDecisionsAsync">Reintentar</button>
+            </div>
+        }
+        else if (decisions is { Count: 0 })
+        {
+            <div class="empty-state compact">
+                <h3>Aún no hay decisiones técnicas</h3>
+                <p>Registra las decisiones que condicionan cómo se construye este proyecto.</p>
+                <a class="button primary" href="@($"/projects/{project.Id}/decisions/new")">Registrar decisión</a>
+            </div>
+        }
+        else if (decisions is not null)
+        {
+            <div class="proposal-list">
+                @foreach (var decision in decisions)
+                {
+                    <a class="proposal-row" href="@($"/projects/{project.Id}/decisions/{decision.Id}")">
+                        <div>
+                            <h3>@decision.Title</h3>
+                            <p>@(decision.DecidedAtUtc is { } decidedAt ? $"Decidida el {decidedAt.ToLocalTime():dd/MM/yyyy}" : $"Creada el {decision.CreatedAtUtc.ToLocalTime():dd/MM/yyyy}")</p>
+                        </div>
+                        <span class="status @decision.Status">@DecisionStatusLabel(decision.Status)</span>
+                    </a>
+                }
+            </div>
+            <div class="form-actions section-actions">
+                <a class="button subtle" href="@($"/projects/{project.Id}/decisions/new")">Nueva decisión técnica</a>
+            </div>
+        }
+    </section>
 }
 
 @code {
     [Parameter] public string ProjectId { get; set; } = "";
+    [SupplyParameterFromQuery] public string? Aviso { get; set; }
 
     private ProjectDto? project;
     private List<ProposalDto>? proposals;
     private ApiError? error;
     private ApiError? proposalError;
+    private List<TechnicalDecisionDto>? decisions;
+    private ApiError? decisionError;
     private bool loading = true;
 
     protected override Task OnParametersSetAsync() => LoadAsync();
@@ -92,6 +145,8 @@ else if (project is not null)
         loading = true;
         project = null;
         proposals = null;
+        decisions = null;
+        decisionError = null;
         error = null;
         proposalError = null;
         if (!Guid.TryParse(ProjectId, out var id) || id == Guid.Empty)
@@ -108,10 +163,28 @@ else if (project is not null)
                 var proposalResult = await Api.ListProposalsAsync(id);
                 proposals = proposalResult.Value;
                 proposalError = proposalResult.Error;
+                await LoadDecisionsAsync();
             }
         }
         loading = false;
     }
+
+    private async Task LoadDecisionsAsync()
+    {
+        if (project is null) return;
+        var result = await Api.ListTechnicalDecisionsAsync(project.Id);
+        decisions = result.Value;
+        decisionError = result.Error;
+    }
+
+    private static string DecisionStatusLabel(string status) => status switch
+    {
+        "draft" => "Borrador",
+        "accepted" => "Aceptada",
+        "rejected" => "Rechazada",
+        "superseded" => "Sustituida",
+        _ => "Estado desconocido"
+    };
 
     private static string StatusLabel(string status) => status switch
     {

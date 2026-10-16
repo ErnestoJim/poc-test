@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 16 de octubre de 2026.
+Implementada y verificada el 16 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -245,4 +245,55 @@ Son cambios internos de `SpecFlow.Web`; no afectan a la API.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlowApiClient` añade las ocho operaciones de decisiones técnicas con el
+  nuevo `TechnicalDecisionDto`. `ProjectDetail` lista las decisiones del
+  proyecto y las páginas nuevas `NewTechnicalDecision` y
+  `TechnicalDecisionDetail` cubren el registro, la edición y el ciclo de vida.
+  No cambian la API, OpenAPI, el dominio ni el esquema.
+- Tres pruebas nuevas del cliente HTTP (siete casos): rutas, título enviado sin
+  recortar, contenido y motivo exactos, identificador de la sustituta,
+  `If-Match` literal, ETags, `204`, transición sin cuerpo, clasificación de
+  `400` (`title`, `content`, `reason` y `replacementDecisionId`), `404`, `409`,
+  `412` y `428`, y fallos de conexión de cada operación.
+- Navegador con API real y SQLite temporal:
+  - Proyecto sin decisiones: invitación a registrar la primera. Con decisiones,
+    la lista mostró los cuatro estados con su fecha.
+  - Registro con título y contenido vacíos y con 201 y 50.001 caracteres:
+    errores junto a cada campo con `aria-invalid="true"`, que se limpian al
+    escribir. Con un título con espacios exteriores, la API lo recortó y la web
+    abrió el detalle de la decisión creada.
+  - Edición con «Guardar cambios» deshabilitado sin cambios, confirmación al
+    cancelar con cambios y guardado correcto. Con la decisión editada por la
+    API: `412`, versión guardada junto al texto propio y «Guardar mi versión».
+    Con la decisión aceptada por la API durante la edición: `412` presentado
+    como cambio de estado, acciones de `accepted` y texto propio visible como no
+    guardado.
+  - Aceptar con confirmación. Con la decisión aceptada por la API antes de
+    confirmar: `412` presentado como cambio de estado.
+  - Rechazar sin motivo y con 1.001 caracteres: error junto al campo; con un
+    motivo válido, la API lo guardó recortado y la decisión quedó en modo de
+    lectura.
+  - Sustituir: sin candidatas se explicó por qué, también en una decisión
+    aceptada antes que la única otra aceptada. Con una candidata posterior, la
+    decisión quedó «Sustituida» con su fecha y el enlace a la sustituta. Con la
+    candidata sustituida por la API antes de confirmar: `409`, requisito
+    explicado y candidatas recargadas.
+  - Eliminar con confirmación: vuelta a la vista de proyecto con el aviso de
+    decisión eliminada.
+  - API detenida al aceptar: solo «Consultar estado actual» habilitado; tras
+    reiniciar, «no se aplicó» y «se aplicó correctamente» cuando la API ya la
+    había aceptado. API detenida al eliminar: tras reiniciar y eliminarla por la
+    API, la consulta confirmó la eliminación y volvió al proyecto.
+  - Decisión inexistente e identificador no válido: mensajes en español con
+    enlace al proyecto.
+- Desviación del plan: la pérdida de conexión al eliminar se comprobó solo con
+  el resultado «se aplicó»; el resultado «no se aplicó» comparte la
+  recuperación verificada al aceptar.
+- Revisión de idioma: los textos nuevos están en español, incluidos estados,
+  confirmaciones, errores de campo y títulos de página.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 538 pruebas correctas (127 de dominio,
+  339 de integración y 72 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

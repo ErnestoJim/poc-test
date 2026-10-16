@@ -89,6 +89,11 @@ cumple» o «Sin verificar») y una evidencia opcional, la sección resume los q
 aún no cumplen, y «Marcar como verificada» cierra la especificación cuando
 todos cumplen.
 
+La vista de proyecto también lista sus decisiones técnicas. Desde ella puedes
+registrar una nueva con título y contenido Markdown y abrir su detalle; en
+borrador puedes editarla, aceptarla, rechazarla con un motivo o eliminarla, y
+una decisión aceptada puede marcarse como sustituida por otra aceptada después.
+
 La web llama a la API desde su servidor. Para usar otra dirección, configura
 `SpecFlowApi__BaseUrl` en el proceso web; en desarrollo vale por defecto
 `http://localhost:5194`. Si la API no está disponible, la interfaz muestra un

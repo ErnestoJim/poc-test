@@ -86,6 +86,10 @@ h3 { font-size: 1.05rem; }
 .status.in_progress { background: #e4edf8; color: #355d8b; }
 .status.completed { background: #e4f4e5; color: #316e42; }
 .status.verified { background: #e6e7f9; color: #514ba0; }
+.status.superseded { background: #eff1ef; color: #5c6b60; }
+.replacement-option { display: flex; margin-right: 0; }
+.replacement-option small { color: #6c7b70; }
+.section-actions { margin-top: 14px; }
 .status.passed { background: #e4f4e5; color: #316e42; }
 .status.failed { background: #fbe8e4; color: #a0493d; }
 .status.unverified { background: #eff1ef; color: #5c6b60; }

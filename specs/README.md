@@ -87,7 +87,7 @@ implementación.
 | [0025](0025-web-criterion-task-links/spec.md) | Vincular criterios y tareas desde la interfaz web | Implementada |
 | [0026](0026-web-specification-lifecycle/spec.md) | Aprobar y marcar implementada una especificación desde la interfaz web | Implementada |
 | [0027](0027-web-verification/spec.md) | Verificar criterios y la especificación desde la interfaz web | Implementada |
-| [0028](0028-web-technical-decisions/spec.md) | Gestionar decisiones técnicas desde la interfaz web | Aprobada para implementación |
+| [0028](0028-web-technical-decisions/spec.md) | Gestionar decisiones técnicas desde la interfaz web | Implementada |
 
 ## Crear la siguiente spec
 

@@ -1,0 +1,748 @@
+@page "/projects/{ProjectId}/decisions/{DecisionId}"
+@using SpecFlow.Web.Services
+@inject SpecFlowApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(decision?.Title ?? "Decisión técnica") · SpecFlow</PageTitle>
+
+<a class="back-link" href="@($"/projects/{ProjectId}")">← Volver al proyecto</a>
+
+@if (loading)
+{
+    <p class="notice">Cargando decisión técnica…</p>
+}
+else if (loadError is not null)
+{
+    <div class="notice error" role="alert">
+        <p>@(loadError.StatusCode == 404 ? "La decisión técnica ya no existe o no pertenece a este proyecto." : loadError.Message)</p>
+        @if (loadError.StatusCode is null)
+        {
+            <button class="button subtle" @onclick="LoadAsync">Reintentar</button>
+        }
+        <a class="button subtle" href="@($"/projects/{ProjectId}")">Volver al proyecto</a>
+    </div>
+    @if (unsavedText is not null)
+    {
+        <section class="detail-card unsaved-content" aria-label="Texto no guardado">
+            <h2>Texto no guardado</h2>
+            <p>No se pudo guardar. Puedes copiarlo antes de salir.</p>
+            <pre class="markdown-source">@unsavedText</pre>
+        </section>
+    }
+}
+else if (decision is not null)
+{
+    <div class="page-heading">
+        <div>
+            <p class="eyebrow">Decisión técnica · <a href="@($"/projects/{ProjectId}")">@project?.Name</a></p>
+            <h1>@decision.Title</h1>
+        </div>
+        <span class="status large @decision.Status">@StatusLabel(decision.Status)</span>
+    </div>
+
+    @if (notice is not null)
+    {
+        <div class="notice decision-notice" role="alert">
+            <p>@notice</p>
+            @if (noticeError is not null)
+            {
+                <p>@noticeError.Message</p>
+            }
+            @if (pending is not null)
+            {
+                <button class="button subtle" @onclick="RecoverAsync" disabled="@refreshing">
+                    @(refreshing ? "Consultando…" : "Consultar estado actual")
+                </button>
+            }
+        </div>
+    }
+
+    @if (active == Action.None && pending is null)
+    {
+        @if (decision.Status == "draft")
+        {
+            <section class="decision-section" aria-label="Decidir la decisión técnica">
+                <p class="eyebrow">Siguiente paso</p>
+                <h2>Decidir esta decisión técnica</h2>
+                <p>Mientras está en borrador puedes corregirla. Aceptarla o rechazarla no se puede deshacer.</p>
+                <div class="form-actions">
+                    <button class="button primary" type="button" @onclick="() => Open(Action.Accept)">Aceptar</button>
+                    <button class="button subtle" type="button" @onclick="() => Open(Action.Reject)">Rechazar</button>
+                    <button class="button subtle" type="button" @onclick="StartEdit">Editar</button>
+                    <button class="button subtle" type="button" @onclick="() => Open(Action.Delete)">Eliminar</button>
+                </div>
+            </section>
+        }
+        else if (decision.Status == "accepted")
+        {
+            <section class="decision-section" aria-label="Sustituir la decisión técnica">
+                <p class="eyebrow">Siguiente paso</p>
+                <h2>Sustituir esta decisión</h2>
+                <p>Cuando una decisión aceptada posterior la reemplace, márcala como sustituida.</p>
+                <div class="form-actions">
+                    <button class="button subtle" type="button" @onclick="() => Open(Action.Supersede)">Marcar como sustituida</button>
+                </div>
+            </section>
+        }
+    }
+    else if (active == Action.Accept)
+    {
+        <section class="decision-section" aria-label="Confirmar aceptación">
+            <p class="eyebrow">Confirmación</p>
+            <h2>¿Aceptar esta decisión técnica?</h2>
+            <p>Después no se podrán modificar su título ni su contenido.</p>
+            <div class="form-actions">
+                <button class="button primary" type="button" @onclick="AcceptAsync" disabled="@Locked">@(sending ? "Aceptando…" : "Confirmar aceptación")</button>
+                <button class="button subtle" type="button" @onclick="Close" disabled="@Locked">Cancelar</button>
+            </div>
+        </section>
+    }
+    else if (active == Action.Delete)
+    {
+        <section class="decision-section" aria-label="Confirmar eliminación">
+            <p class="eyebrow">Confirmación</p>
+            <h2>¿Eliminar este borrador?</h2>
+            <p>La decisión técnica se eliminará definitivamente.</p>
+            <div class="form-actions">
+                <button class="button primary" type="button" @onclick="DeleteAsync" disabled="@Locked">@(sending ? "Eliminando…" : "Confirmar eliminación")</button>
+                <button class="button subtle" type="button" @onclick="Close" disabled="@Locked">Cancelar</button>
+            </div>
+        </section>
+    }
+    else if (active == Action.Reject)
+    {
+        <section class="decision-section" aria-label="Rechazar la decisión técnica">
+            <p class="eyebrow">Motivo de rechazo</p>
+            <h2>Rechazar esta decisión técnica</h2>
+            <form @onsubmit="RejectAsync" @onsubmit:preventDefault>
+                <div class="field">
+                    <label for="decision-rejection-reason">Motivo del rechazo <span class="required">*</span></label>
+                    <textarea id="decision-rejection-reason" @bind="reason" @bind:event="oninput" @bind:after="ClearFieldError" rows="4"
+                              disabled="@Locked"
+                              aria-invalid="@FieldValidation.AriaInvalid(fieldError, "reason")"
+                              aria-describedby="@FieldValidation.DescribedBy(fieldError, "reason", "decision-rejection-reason")"></textarea>
+                    <small id="decision-rejection-reason-hint">Explica el rechazo en un máximo de 1.000 caracteres. No se podrá deshacer.</small>
+                    @if (fieldError?.HasField("reason") == true)
+                    {
+                        <span id="decision-rejection-reason-error" class="field-error">Introduce un motivo de hasta 1.000 caracteres.</span>
+                    }
+                </div>
+                <div class="form-actions">
+                    <button class="button primary" type="submit" disabled="@Locked">@(sending ? "Rechazando…" : "Confirmar rechazo")</button>
+                    <button class="button subtle" type="button" @onclick="Close" disabled="@Locked">Cancelar</button>
+                </div>
+            </form>
+        </section>
+    }
+    else if (active == Action.Supersede)
+    {
+        <section class="decision-section" aria-label="Elegir la decisión sustituta">
+            <p class="eyebrow">Sustitución</p>
+            <h2>¿Qué decisión la sustituye?</h2>
+            @if (candidatesError is not null)
+            {
+                <div class="notice error" role="alert">
+                    <p>No se pudieron cargar las decisiones del proyecto. @candidatesError.Message</p>
+                    <button class="button subtle" type="button" @onclick="LoadProjectDecisionsAsync">Reintentar</button>
+                </div>
+            }
+            else if (Candidates.Count == 0)
+            {
+                <p>No hay decisiones aceptadas después de esta. Primero registra y acepta la decisión que la sustituye.</p>
+                <div class="form-actions">
+                    <button class="button subtle" type="button" @onclick="Close">Cerrar</button>
+                </div>
+            }
+            else
+            {
+                <form @onsubmit="SupersedeAsync" @onsubmit:preventDefault>
+                    <fieldset disabled="@Locked">
+                        <legend>Decisiones aceptadas después de esta</legend>
+                        @foreach (var candidate in Candidates)
+                        {
+                            var candidateId = candidate.Id;
+                            <label class="verification-option replacement-option">
+                                <input type="radio" name="replacement-decision" checked="@(replacementId == candidateId)"
+                                       @onchange="() => replacementId = candidateId" />
+                                <span>@candidate.Title <small>(aceptada el @FormatDate(candidate.DecidedAtUtc!.Value))</small></span>
+                            </label>
+                        }
+                    </fieldset>
+                    <p>La decisión quedará sustituida y no se podrá deshacer.</p>
+                    <div class="form-actions">
+                        <button class="button primary" type="submit" disabled="@(Locked || replacementId is null)">@(sending ? "Guardando…" : "Confirmar sustitución")</button>
+                        <button class="button subtle" type="button" @onclick="Close" disabled="@Locked">Cancelar</button>
+                    </div>
+                </form>
+            }
+        </section>
+    }
+
+    @if (active == Action.Edit && savedVersion is not null)
+    {
+        <section class="detail-card saved-version" aria-label="Versión guardada actual">
+            <h2>Versión guardada actual</h2>
+            <p>Actualizada el @FormatDate(savedVersion.UpdatedAtUtc). Tu texto sigue en el formulario sin guardar.</p>
+            <p class="task-title">@savedVersion.Title</p>
+            <pre class="markdown-source">@savedVersion.Content</pre>
+        </section>
+    }
+
+    <div class="detail-grid">
+        @if (active == Action.Edit)
+        {
+            <form class="detail-card specification-edit" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+                <div class="field">
+                    <label for="decision-edit-title">Título <span class="required">*</span></label>
+                    <input id="decision-edit-title" @bind="editTitle" @bind:event="oninput" @bind:after="ClearFieldError" disabled="@Locked"
+                           aria-invalid="@FieldValidation.AriaInvalid(fieldError, "title")"
+                           aria-describedby="@FieldValidation.DescribedBy(fieldError, "title", "decision-edit-title")" />
+                    <small id="decision-edit-title-hint">Entre 1 y 200 caracteres.</small>
+                    @if (fieldError?.HasField("title") == true)
+                    {
+                        <span id="decision-edit-title-error" class="field-error">Introduce un título de hasta 200 caracteres.</span>
+                    }
+                </div>
+                <div class="field">
+                    <label for="decision-edit-content">Contenido Markdown <span class="required">*</span></label>
+                    <textarea id="decision-edit-content" class="markdown-editor" @bind="editContent" @bind:event="oninput" @bind:after="ClearFieldError"
+                              rows="18" disabled="@Locked"
+                              aria-invalid="@FieldValidation.AriaInvalid(fieldError, "content")"
+                              aria-describedby="@FieldValidation.DescribedBy(fieldError, "content", "decision-edit-content")"></textarea>
+                    <small id="decision-edit-content-hint">Hasta 50.000 caracteres. El texto se guardará tal como lo envíes.</small>
+                    @if (fieldError?.HasField("content") == true)
+                    {
+                        <span id="decision-edit-content-error" class="field-error">Introduce un contenido de hasta 50.000 caracteres.</span>
+                    }
+                </div>
+                @if (confirmDiscard)
+                {
+                    <div class="notice" role="alert">
+                        <p>¿Descartar los cambios sin guardar?</p>
+                        <div class="form-actions">
+                            <button class="button primary" type="button" @onclick="Discard">Descartar cambios</button>
+                            <button class="button subtle" type="button" @onclick="() => confirmDiscard = false">Seguir editando</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-actions">
+                        <button class="button primary" type="submit" disabled="@(Locked || !HasEditChanges)">
+                            @(sending ? "Guardando…" : savedVersion is not null ? "Guardar mi versión" : "Guardar cambios")
+                        </button>
+                        @if (savedVersion is not null)
+                        {
+                            <button class="button subtle" type="button" @onclick="Discard" disabled="@Locked">Descartar mi versión</button>
+                        }
+                        else
+                        {
+                            <button class="button subtle" type="button" @onclick="CancelEdit" disabled="@Locked">Cancelar</button>
+                        }
+                    </div>
+                }
+            </form>
+        }
+        else
+        {
+            <section class="detail-card">
+                <h2>Contenido Markdown</h2>
+                <pre class="markdown-source">@decision.Content</pre>
+            </section>
+        }
+        <aside class="detail-card metadata">
+            <h2>Información</h2>
+            <dl>
+                <dt>Creada</dt>
+                <dd>@FormatDate(decision.CreatedAtUtc)</dd>
+                <dt>Actualizada</dt>
+                <dd>@FormatDate(decision.UpdatedAtUtc)</dd>
+                @if (decision.DecidedAtUtc is { } decidedAt)
+                {
+                    <dt>@(decision.Status == "rejected" ? "Rechazada" : "Aceptada")</dt>
+                    <dd>@FormatDate(decidedAt)</dd>
+                }
+                @if (decision.RejectionReason is not null)
+                {
+                    <dt>Motivo de rechazo</dt>
+                    <dd>@decision.RejectionReason</dd>
+                }
+                @if (decision.SupersededAtUtc is { } supersededAt)
+                {
+                    <dt>Sustituida</dt>
+                    <dd>@FormatDate(supersededAt)</dd>
+                }
+                @if (decision.SupersededByDecisionId is { } replacement)
+                {
+                    <dt>Sustituida por</dt>
+                    <dd><a href="@($"/projects/{ProjectId}/decisions/{replacement}")">@(DecisionTitle(replacement) ?? "Ver decisión sustituta")</a></dd>
+                }
+            </dl>
+        </aside>
+    </div>
+
+    @if (unsavedText is not null)
+    {
+        <section class="detail-card unsaved-content" aria-label="Texto no guardado">
+            <h2>Texto no guardado</h2>
+            <p>No se pudo guardar. Puedes copiarlo antes de salir.</p>
+            <pre class="markdown-source">@unsavedText</pre>
+        </section>
+    }
+}
+
+@code {
+    [Parameter] public string ProjectId { get; set; } = "";
+    [Parameter] public string DecisionId { get; set; } = "";
+
+    private enum Action { None, Edit, Accept, Reject, Delete, Supersede }
+
+    private Guid projectId;
+    private Guid decisionId;
+    private ProjectDto? project;
+    private TechnicalDecisionDto? decision;
+    private string? entityTag;
+    private List<TechnicalDecisionDto>? projectDecisions;
+    private ApiError? candidatesError;
+    private ApiError? loadError;
+    private bool loading = true;
+
+    private Action active;
+    private string? editTitle;
+    private string? editContent;
+    private TechnicalDecisionDto? savedVersion;
+    private bool confirmDiscard;
+    private string? reason;
+    private Guid? replacementId;
+    private ApiError? fieldError;
+
+    private bool sending;
+    private bool refreshing;
+    private Action? pending;
+    private string? sourceStatus;
+    private (string? Title, string? Content)? sentText;
+    private string? sentReason;
+    private Guid? sentReplacement;
+
+    private string? notice;
+    private ApiError? noticeError;
+    private string? unsavedText;
+
+    // Nothing is resent while the outcome of an operation is unknown.
+    private bool Locked => sending || refreshing || pending is not null;
+    private bool HasEditChanges => decision is not null &&
+        (!string.Equals(editTitle, savedVersion?.Title ?? decision.Title, StringComparison.Ordinal) ||
+         !string.Equals(editContent, savedVersion?.Content ?? decision.Content, StringComparison.Ordinal));
+
+    // Mirrors the API rule so only replacements that can succeed are offered; the API still decides.
+    private List<TechnicalDecisionDto> Candidates => decision?.DecidedAtUtc is not { } decidedAt || projectDecisions is null
+        ? []
+        : projectDecisions
+            .Where(d => d.Id != decision.Id && d.Status == "accepted" && d.DecidedAtUtc is { } other &&
+                (other > decidedAt || (other == decidedAt && d.Id.CompareTo(decision.Id) > 0)))
+            .OrderBy(d => d.DecidedAtUtc)
+            .ToList();
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        loadError = null;
+        decision = null;
+        ResetAction();
+        pending = null;
+        notice = null;
+        noticeError = null;
+        if (!Guid.TryParse(ProjectId, out projectId) || projectId == Guid.Empty ||
+            !Guid.TryParse(DecisionId, out decisionId) || decisionId == Guid.Empty)
+        {
+            loadError = new ApiError(400, "El identificador de la ruta no es válido.", new HashSet<string>());
+        }
+        else
+        {
+            var projectResult = await Api.GetProjectAsync(projectId);
+            project = projectResult.Value;
+            loadError = projectResult.Error;
+            if (project is not null)
+            {
+                var result = await Api.GetTechnicalDecisionAsync(projectId, decisionId);
+                decision = result.Value;
+                entityTag = result.EntityTag;
+                loadError = result.Error;
+                if (decision is not null)
+                {
+                    await LoadProjectDecisionsAsync();
+                }
+            }
+        }
+        loading = false;
+    }
+
+    // Used for the replacement candidates and the title of the replacing decision.
+    private async Task LoadProjectDecisionsAsync()
+    {
+        var result = await Api.ListTechnicalDecisionsAsync(projectId);
+        projectDecisions = result.Value ?? projectDecisions;
+        candidatesError = result.Error;
+    }
+
+    private void Open(Action action)
+    {
+        if (Locked || decision is null) return;
+        ResetAction();
+        ClearNotice();
+        active = action;
+    }
+
+    private void StartEdit()
+    {
+        if (Locked || decision is not { Status: "draft" }) return;
+        Open(Action.Edit);
+        editTitle = decision.Title;
+        editContent = decision.Content;
+    }
+
+    private void Close()
+    {
+        if (Locked) return;
+        ResetAction();
+    }
+
+    private void CancelEdit()
+    {
+        if (HasEditChanges)
+        {
+            confirmDiscard = true;
+            return;
+        }
+
+        ResetAction();
+    }
+
+    private void Discard()
+    {
+        ResetAction();
+        ClearNotice();
+    }
+
+    private void ResetAction()
+    {
+        active = Action.None;
+        editTitle = null;
+        editContent = null;
+        savedVersion = null;
+        confirmDiscard = false;
+        reason = null;
+        replacementId = null;
+        fieldError = null;
+    }
+
+    private void ClearFieldError()
+    {
+        confirmDiscard = false;
+        if (fieldError?.Fields.Count > 0)
+        {
+            fieldError = null;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (active != Action.Edit || Locked || !HasEditChanges || entityTag is null) return;
+        sentText = (editTitle, editContent);
+        await SendAsync(Action.Edit, "draft",
+            () => Api.UpdateTechnicalDecisionAsync(projectId, decisionId, editTitle, editContent, entityTag),
+            "Cambios guardados.");
+    }
+
+    private Task AcceptAsync() => active != Action.Accept || entityTag is null
+        ? Task.CompletedTask
+        : SendAsync(Action.Accept, "draft",
+            () => Api.AcceptTechnicalDecisionAsync(projectId, decisionId, entityTag),
+            "Decisión técnica aceptada.");
+
+    private Task RejectAsync()
+    {
+        if (active != Action.Reject || entityTag is null) return Task.CompletedTask;
+        sentReason = reason;
+        return SendAsync(Action.Reject, "draft",
+            () => Api.RejectTechnicalDecisionAsync(projectId, decisionId, reason, entityTag),
+            "Decisión técnica rechazada.");
+    }
+
+    private Task SupersedeAsync()
+    {
+        if (active != Action.Supersede || replacementId is not { } replacement || entityTag is null) return Task.CompletedTask;
+        sentReplacement = replacement;
+        return SendAsync(Action.Supersede, "accepted",
+            () => Api.SupersedeTechnicalDecisionAsync(projectId, decisionId, replacement, entityTag),
+            "Decisión técnica marcada como sustituida.");
+    }
+
+    private async Task SendAsync(Action action, string expectedStatus, Func<Task<ApiResult<TechnicalDecisionDto>>> send, string success)
+    {
+        if (Locked || decision?.Status != expectedStatus) return;
+        sending = true;
+        sourceStatus = expectedStatus;
+        fieldError = null;
+        ClearNotice();
+        ApiError? error;
+        try
+        {
+            var result = await send();
+            if (result.Value is { } updated)
+            {
+                Adopt(updated, result.EntityTag);
+                ResetAction();
+                notice = success;
+                return;
+            }
+
+            error = result.Error;
+            if (error is { StatusCode: 400 } && (error.HasField("title") || error.HasField("content") || error.HasField("reason")))
+            {
+                fieldError = error;
+                return;
+            }
+        }
+        finally
+        {
+            sending = false;
+        }
+
+        await HandleFailureAsync(action, error);
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (active != Action.Delete || Locked || entityTag is null || decision?.Status != "draft") return;
+        sending = true;
+        sourceStatus = "draft";
+        ClearNotice();
+        ApiError? error;
+        try
+        {
+            var result = await Api.DeleteTechnicalDecisionAsync(projectId, decisionId, entityTag);
+            if (result.IsSuccess)
+            {
+                Navigation.NavigateTo($"/projects/{ProjectId}?aviso=decision-eliminada");
+                return;
+            }
+
+            error = result.Error;
+        }
+        finally
+        {
+            sending = false;
+        }
+
+        await HandleFailureAsync(Action.Delete, error);
+    }
+
+    private async Task HandleFailureAsync(Action action, ApiError? error)
+    {
+        switch (error?.StatusCode)
+        {
+            case 412 or 409:
+                await ResolveConflictAsync(action, error.StatusCode == 409);
+                break;
+            case 404 when action == Action.Supersede:
+                await HandleMissingReplacementAsync();
+                break;
+            case 404:
+                unsavedText = LocalText();
+                loadError = error;
+                break;
+            case null or >= 500:
+                pending = action;
+                notice = "No se sabe si el cambio se aplicó. Consulta el estado actual antes de intentarlo de nuevo.";
+                noticeError = error;
+                break;
+            default:
+                pending = action;
+                notice = "No se pudo completar la operación. Consulta el estado actual antes de intentarlo de nuevo.";
+                break;
+        }
+    }
+
+    // Any status change bumps the decision version, so a decision changed elsewhere arrives as 412.
+    private async Task ResolveConflictAsync(Action action, bool notAllowed)
+    {
+        var result = await Api.GetTechnicalDecisionAsync(projectId, decisionId);
+        if (result.Value is not { } current || result.EntityTag is null)
+        {
+            HandleReloadFailure(action, result.Error);
+            return;
+        }
+
+        if (current.Status != sourceStatus)
+        {
+            unsavedText = LocalText() ?? unsavedText;
+            Adopt(current, result.EntityTag);
+            ResetAction();
+            notice = $"La decisión técnica cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+            await LoadProjectDecisionsAsync();
+            return;
+        }
+
+        switch (action)
+        {
+            case Action.Edit:
+                entityTag = result.EntityTag;
+                decision = current;
+                savedVersion = current;
+                notice = "Otra persona cambió la decisión técnica. Compara tu texto con la versión guardada y decide si guardas el tuyo.";
+                break;
+            case Action.Supersede when notAllowed:
+                Adopt(current, result.EntityTag);
+                replacementId = null;
+                await LoadProjectDecisionsAsync();
+                notice = "No se pudo sustituir: la decisión sustituta debe estar aceptada y ser posterior a esta. Revisa las opciones actuales.";
+                break;
+            default:
+                Adopt(current, result.EntityTag);
+                notice = "La decisión técnica cambió desde que la consultaste. Revisa la versión actual antes de continuar.";
+                break;
+        }
+    }
+
+    private async Task HandleMissingReplacementAsync()
+    {
+        var current = await Api.GetTechnicalDecisionAsync(projectId, decisionId);
+        if (current.Value is null)
+        {
+            HandleReloadFailure(Action.Supersede, current.Error);
+            return;
+        }
+
+        replacementId = null;
+        await LoadProjectDecisionsAsync();
+        notice = "La decisión elegida como sustituta ya no existe. Elige otra.";
+    }
+
+    private async Task RecoverAsync()
+    {
+        if (refreshing || pending is not { } action) return;
+        refreshing = true;
+        noticeError = null;
+        try
+        {
+            var result = await Api.GetTechnicalDecisionAsync(projectId, decisionId);
+            if (result.Value is not { } current || result.EntityTag is null)
+            {
+                if (result.Error?.StatusCode == 404 && action == Action.Delete)
+                {
+                    Navigation.NavigateTo($"/projects/{ProjectId}?aviso=decision-eliminada");
+                    return;
+                }
+
+                HandleReloadFailure(action, result.Error);
+                return;
+            }
+
+            pending = null;
+            var applied = action switch
+            {
+                Action.Edit => current.Title == sentText?.Title?.Trim() && current.Content == sentText?.Content,
+                Action.Accept => current.Status == "accepted",
+                Action.Reject => current.Status == "rejected" && current.RejectionReason == sentReason?.Trim(),
+                Action.Supersede => current.Status == "superseded" && current.SupersededByDecisionId == sentReplacement,
+                _ => false
+            };
+
+            if (applied)
+            {
+                Adopt(current, result.EntityTag);
+                ResetAction();
+                notice = "El cambio se aplicó correctamente.";
+                await LoadProjectDecisionsAsync();
+                return;
+            }
+
+            if (current.Status != sourceStatus)
+            {
+                unsavedText = LocalText() ?? unsavedText;
+                Adopt(current, result.EntityTag);
+                ResetAction();
+                notice = $"El cambio no se aplicó. La decisión técnica cambió de estado y ahora está {StatusPhrase(current.Status)}.";
+                await LoadProjectDecisionsAsync();
+                return;
+            }
+
+            if (action == Action.Edit)
+            {
+                entityTag = result.EntityTag;
+                var changedElsewhere = current != decision;
+                decision = current;
+                savedVersion = changedElsewhere ? current : null;
+                notice = changedElsewhere
+                    ? "Tu cambio no se guardó y otra persona cambió la decisión. Compara ambas versiones y decide si guardas la tuya."
+                    : "Tu cambio no se guardó. Revisa tu texto y decide si lo guardas.";
+                return;
+            }
+
+            Adopt(current, result.EntityTag);
+            notice = "El cambio no se aplicó. Puedes intentarlo de nuevo.";
+        }
+        finally
+        {
+            refreshing = false;
+        }
+    }
+
+    private void HandleReloadFailure(Action action, ApiError? error)
+    {
+        if (error?.StatusCode == 404)
+        {
+            unsavedText = LocalText();
+            loadError = error;
+            return;
+        }
+
+        pending = action;
+        notice = "No se pudo comprobar el estado actual de la decisión técnica.";
+        noticeError = error;
+    }
+
+    private void Adopt(TechnicalDecisionDto current, string? currentEntityTag)
+    {
+        decision = current;
+        entityTag = currentEntityTag;
+    }
+
+    private string? LocalText() => active switch
+    {
+        Action.Edit => $"{editTitle}\n\n{editContent}",
+        Action.Reject when !string.IsNullOrEmpty(reason) => $"Motivo del rechazo: {reason}",
+        _ => null
+    };
+
+    private void ClearNotice()
+    {
+        notice = null;
+        noticeError = null;
+    }
+
+    private string? DecisionTitle(Guid id) => projectDecisions?.FirstOrDefault(d => d.Id == id)?.Title;
+
+    private static string FormatDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "draft" => "Borrador",
+        "accepted" => "Aceptada",
+        "rejected" => "Rechazada",
+        "superseded" => "Sustituida",
+        _ => "Estado desconocido"
+    };
+
+    private static string StatusPhrase(string status) => status switch
+    {
+        "draft" => "en borrador",
+        "accepted" => "aceptada",
+        "rejected" => "rechazada",
+        "superseded" => "sustituida",
+        _ => "en un estado desconocido"
+    };
+}

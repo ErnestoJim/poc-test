@@ -44,6 +44,19 @@ public sealed record ImplementationTaskDto(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
+public sealed record TechnicalDecisionDto(
+    Guid Id,
+    Guid ProjectId,
+    string Title,
+    string Content,
+    string Status,
+    DateTimeOffset? DecidedAtUtc,
+    string? RejectionReason,
+    DateTimeOffset? SupersededAtUtc,
+    Guid? SupersededByDecisionId,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
 public sealed record AcceptanceCriterionVerificationDto(
     string Status,
     string? Evidence,
