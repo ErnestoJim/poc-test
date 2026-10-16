@@ -44,6 +44,11 @@ public sealed record ImplementationTaskDto(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
+public sealed record AcceptanceCriterionVerificationDto(
+    string Status,
+    string? Evidence,
+    DateTimeOffset? CheckedAtUtc);
+
 public sealed record TaskAcceptanceCriteriaDto(IReadOnlyList<Guid> AcceptanceCriterionIds);
 
 public sealed record ApiError(int? StatusCode, string Message, IReadOnlySet<string> Fields)

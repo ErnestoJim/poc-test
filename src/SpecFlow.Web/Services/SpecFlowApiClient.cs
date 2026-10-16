@@ -129,6 +129,44 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             cancellationToken,
             entityTag);
 
+    public Task<ApiResult<SpecificationDto>> VerifySpecificationAsync(
+        Guid projectId,
+        Guid proposalId,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<SpecificationDto>(
+            HttpMethod.Post,
+            $"/api/projects/{projectId}/proposals/{proposalId}/specification/verify",
+            null,
+            cancellationToken,
+            entityTag);
+
+    public Task<ApiResult<AcceptanceCriterionVerificationDto>> GetAcceptanceCriterionVerificationAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid criterionId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AcceptanceCriterionVerificationDto>(
+            HttpMethod.Get,
+            $"{AcceptanceCriteriaPath(projectId, proposalId)}/{criterionId}/verification",
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<AcceptanceCriterionVerificationDto>> SaveAcceptanceCriterionVerificationAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid criterionId,
+        string status,
+        string? evidence,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AcceptanceCriterionVerificationDto>(
+            HttpMethod.Put,
+            $"{AcceptanceCriteriaPath(projectId, proposalId)}/{criterionId}/verification",
+            new { status, evidence },
+            cancellationToken,
+            entityTag);
+
     public Task<ApiResult<List<AcceptanceCriterionDto>>> ListAcceptanceCriteriaAsync(
         Guid projectId,
         Guid proposalId,

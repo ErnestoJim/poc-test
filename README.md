@@ -83,8 +83,11 @@ criterios que aún no tienen tarea; «Vincular criterios» permite elegirlos con
 casillas y guarda la selección completa. Con el plan listo, «Aprobar
 especificación» la aprueba tras confirmación, y cuando todas las tareas están
 completadas, «Marcar como implementada» cierra la ejecución. Si la API rechaza
-el cambio, la web explica qué requisito falta. La verificación de criterios y
-de la especificación sigue gestionándose por la API.
+el cambio, la web explica qué requisito falta. Una vez implementada, cada
+criterio permite «Registrar verificación» con su resultado («Cumple», «No
+cumple» o «Sin verificar») y una evidencia opcional, la sección resume los que
+aún no cumplen, y «Marcar como verificada» cierra la especificación cuando
+todos cumplen.
 
 La web llama a la API desde su servidor. Para usar otra dirección, configura
 `SpecFlowApi__BaseUrl` en el proceso web; en desarrollo vale por defecto

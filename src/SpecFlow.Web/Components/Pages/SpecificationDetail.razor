@@ -202,7 +202,7 @@ else if (proposal is not null)
                                     <p>@ConfirmationText(transition)</p>
                                     <div class="form-actions">
                                         <button class="button primary" type="button" @onclick="TransitionAsync" disabled="@transitioning">
-                                            @(transitioning ? "Guardando…" : transition == Transition.Approve ? "Confirmar aprobación" : "Confirmar implementación")
+                                            @(transitioning ? "Guardando…" : ConfirmLabel(transition))
                                         </button>
                                         <button class="button subtle" type="button" @onclick="() => confirmingTransition = null" disabled="@transitioning">Cancelar</button>
                                     </div>
@@ -211,7 +211,7 @@ else if (proposal is not null)
                             else
                             {
                                 <button class="button primary" type="button" @onclick="() => ConfirmTransition(transition)" disabled="@(!CanTransition)">
-                                    @(transition == Transition.Approve ? "Aprobar especificación" : "Marcar como implementada")
+                                    @ActionLabel(transition)
                                 </button>
                                 @if (!CanTransition && pendingTransition is null)
                                 {
@@ -314,7 +314,7 @@ else if (proposal is not null)
     private bool criteriaActive;
     private bool tasksActive;
 
-    private enum Transition { Approve, MarkImplemented }
+    private enum Transition { Approve, MarkImplemented, Verify }
 
     private Transition? confirmingTransition;
     private Transition? pendingTransition;
@@ -332,6 +332,7 @@ else if (proposal is not null)
     {
         "draft" => Transition.Approve,
         "approved" => Transition.MarkImplemented,
+        "implemented" => Transition.Verify,
         _ => null
     };
     private bool EditLocked => saving || refreshing || pendingRecovery is not null;
@@ -704,17 +705,23 @@ else if (proposal is not null)
         ApiError? error;
         try
         {
-            var result = transition == Transition.Approve
-                ? await Api.ApproveSpecificationAsync(proposal.ProjectId, proposal.Id, entityTag)
-                : await Api.MarkSpecificationImplementedAsync(proposal.ProjectId, proposal.Id, entityTag);
+            var result = transition switch
+            {
+                Transition.Approve => await Api.ApproveSpecificationAsync(proposal.ProjectId, proposal.Id, entityTag),
+                Transition.MarkImplemented => await Api.MarkSpecificationImplementedAsync(proposal.ProjectId, proposal.Id, entityTag),
+                _ => await Api.VerifySpecificationAsync(proposal.ProjectId, proposal.Id, entityTag)
+            };
             confirmingTransition = null;
             if (result.Value is { } updated)
             {
                 specification = updated;
                 entityTag = result.EntityTag;
-                lifecycleNotice = transition == Transition.Approve
-                    ? "Especificación aprobada. Ya puedes iniciar sus tareas."
-                    : "Especificación marcada como implementada.";
+                lifecycleNotice = transition switch
+                {
+                    Transition.Approve => "Especificación aprobada. Ya puedes iniciar sus tareas.",
+                    Transition.MarkImplemented => "Especificación marcada como implementada. Ya puedes verificar sus criterios.",
+                    _ => "Especificación verificada."
+                };
                 return;
             }
 
@@ -766,9 +773,12 @@ else if (proposal is not null)
             return;
         }
 
-        lifecycleNotice = StatusChangeText(transition, current) ?? (transition == Transition.Approve
-            ? "Todavía no se puede aprobar. Necesita al menos un criterio de aceptación, al menos una tarea y que todos los criterios estén cubiertos por alguna tarea; revisa el resumen de cobertura de las tareas."
-            : "Todavía no se puede marcar como implementada. Todas las tareas deben estar completadas.");
+        lifecycleNotice = StatusChangeText(transition, current) ?? transition switch
+        {
+            Transition.Approve => "Todavía no se puede aprobar. Necesita al menos un criterio de aceptación, al menos una tarea y que todos los criterios estén cubiertos por alguna tarea; revisa el resumen de cobertura de las tareas.",
+            Transition.MarkImplemented => "Todavía no se puede marcar como implementada. Todas las tareas deben estar completadas.",
+            _ => "Todavía no se puede marcar como verificada. Todos los criterios deben cumplir; revisa el resumen de verificación de los criterios."
+        };
     }
 
     // Null while the specification is still in the status the transition starts from.
@@ -822,13 +832,33 @@ else if (proposal is not null)
         lifecycleError = error;
     }
 
-    private static (string Source, string Target) Statuses(Transition transition) => transition == Transition.Approve
-        ? ("draft", "approved")
-        : ("approved", "implemented");
+    private static (string Source, string Target) Statuses(Transition transition) => transition switch
+    {
+        Transition.Approve => ("draft", "approved"),
+        Transition.MarkImplemented => ("approved", "implemented"),
+        _ => ("implemented", "verified")
+    };
 
-    private static string ConfirmationText(Transition transition) => transition == Transition.Approve
-        ? "¿Aprobar la especificación? Después no se podrán modificar su contenido, sus criterios, sus tareas ni sus vínculos."
-        : "¿Marcar la especificación como implementada? No se podrá volver al estado aprobado ni cambiar el estado de sus tareas.";
+    private static string ActionLabel(Transition transition) => transition switch
+    {
+        Transition.Approve => "Aprobar especificación",
+        Transition.MarkImplemented => "Marcar como implementada",
+        _ => "Marcar como verificada"
+    };
+
+    private static string ConfirmLabel(Transition transition) => transition switch
+    {
+        Transition.Approve => "Confirmar aprobación",
+        Transition.MarkImplemented => "Confirmar implementación",
+        _ => "Confirmar verificación"
+    };
+
+    private static string ConfirmationText(Transition transition) => transition switch
+    {
+        Transition.Approve => "¿Aprobar la especificación? Después no se podrán modificar su contenido, sus criterios, sus tareas ni sus vínculos.",
+        Transition.MarkImplemented => "¿Marcar la especificación como implementada? No se podrá volver al estado aprobado ni cambiar el estado de sus tareas.",
+        _ => "¿Marcar la especificación como verificada? Después no se podrán cambiar las verificaciones de sus criterios."
+    };
 
     private async Task<ApiResult<SpecificationDto>> ReloadSpecificationAsync()
     {

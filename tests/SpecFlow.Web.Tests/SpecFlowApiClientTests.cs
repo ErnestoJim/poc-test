@@ -701,6 +701,112 @@ public sealed class SpecFlowApiClientTests
         });
     }
 
+    [Fact]
+    public async Task CriterionVerificationIsReadAndSavedWithItsOwnEntityTag()
+    {
+        var criterionId = Guid.NewGuid();
+        const string evidence = "  Probado en staging\r\n  ";
+        var path = $"/api/projects/{ProjectId}/proposals/{ProposalId}/specification/acceptance-criteria/{criterionId}/verification";
+        var unverified = new AcceptanceCriterionVerificationDto("unverified", null, null);
+        var passed = new AcceptanceCriterionVerificationDto("passed", evidence, CreatedAt);
+        var handler = new RecordingHandler(
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(unverified) }, "\"ver-1\""),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(passed) }, "\"ver-2\""),
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(unverified) }, "\"ver-3\""));
+        var client = CreateClient(handler);
+
+        var read = await client.GetAcceptanceCriterionVerificationAsync(ProjectId, ProposalId, criterionId);
+        var saved = await client.SaveAcceptanceCriterionVerificationAsync(ProjectId, ProposalId, criterionId, "passed", evidence, "\"ver-1\"");
+        var cleared = await client.SaveAcceptanceCriterionVerificationAsync(ProjectId, ProposalId, criterionId, "unverified", null, "\"ver-2\"");
+
+        Assert.Equal("unverified", read.Value?.Status);
+        Assert.Null(read.Value?.CheckedAtUtc);
+        Assert.Equal("\"ver-1\"", read.EntityTag);
+        Assert.Equal(evidence, saved.Value?.Evidence);
+        Assert.Equal(CreatedAt, saved.Value?.CheckedAtUtc);
+        Assert.Equal("\"ver-2\"", saved.EntityTag);
+        Assert.Equal("\"ver-3\"", cleared.EntityTag);
+        Assert.Equal([$"GET {path}", $"PUT {path}", $"PUT {path}"], handler.Requests.Select(r => r.Route));
+        Assert.Equal([null, "\"ver-1\"", "\"ver-2\""], handler.Requests.Select(r => r.IfMatch));
+        Assert.Null(handler.Requests[0].Body);
+        Assert.Equal("passed", handler.Requests[1].Body!.Value.GetProperty("status").GetString());
+        Assert.Equal(evidence, handler.Requests[1].Body!.Value.GetProperty("evidence").GetString());
+        Assert.Equal("unverified", handler.Requests[2].Body!.Value.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, handler.Requests[2].Body!.Value.GetProperty("evidence").ValueKind);
+    }
+
+    [Fact]
+    public async Task VerifySpecificationSendsIfMatchWithoutBodyAndReadsNewState()
+    {
+        var verified = new SpecificationDto(
+            Guid.NewGuid(), ProposalId, "# Spec", "verified", CreatedAt, CreatedAt, CreatedAt.AddDays(2), CreatedAt, CreatedAt);
+        var handler = new RecordingHandler(
+            WithEntityTag(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(verified) }, "\"s-5\""));
+        var client = CreateClient(handler);
+
+        var result = await client.VerifySpecificationAsync(ProjectId, ProposalId, "\"s-4\"");
+
+        Assert.Equal("verified", result.Value?.Status);
+        Assert.Equal(CreatedAt.AddDays(2), result.Value?.VerifiedAtUtc);
+        Assert.Equal("\"s-5\"", result.EntityTag);
+        Assert.Equal([$"POST /api/projects/{ProjectId}/proposals/{ProposalId}/specification/verify"], handler.Requests.Select(r => r.Route));
+        Assert.Equal(["\"s-4\""], handler.Requests.Select(r => r.IfMatch));
+        Assert.Null(handler.Requests[0].Body);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, 400, true)]
+    [InlineData(HttpStatusCode.NotFound, 404, false)]
+    [InlineData(HttpStatusCode.Conflict, 409, false)]
+    [InlineData(HttpStatusCode.PreconditionFailed, 412, false)]
+    [InlineData((HttpStatusCode)428, 428, false)]
+    public async Task VerificationErrorsKeepStatusAndField(HttpStatusCode status, int expectedStatus, bool hasField)
+    {
+        HttpResponseMessage Error() => new(status)
+        {
+            Content = JsonContent.Create(new
+            {
+                title = "Error",
+                errors = hasField ? new Dictionary<string, string[]> { ["evidence"] = InvalidMessages } : null
+            })
+        };
+        var client = CreateClient(new RecordingHandler(Error(), Error(), Error()));
+        var criterionId = Guid.NewGuid();
+
+        var read = await client.GetAcceptanceCriterionVerificationAsync(ProjectId, ProposalId, criterionId);
+        var saved = await client.SaveAcceptanceCriterionVerificationAsync(ProjectId, ProposalId, criterionId, "passed", " ", "\"v1\"");
+        var verify = await client.VerifySpecificationAsync(ProjectId, ProposalId, "\"v1\"");
+
+        Assert.All([read.Error, saved.Error, verify.Error], error =>
+        {
+            Assert.Equal(expectedStatus, error?.StatusCode);
+            Assert.NotEmpty(error!.Message);
+        });
+        Assert.Equal(hasField, saved.Error!.HasField("evidence"));
+        Assert.Null(saved.Value);
+        Assert.Null(verify.EntityTag);
+    }
+
+    [Fact]
+    public async Task VerificationNetworkFailuresHaveUnknownStatus()
+    {
+        var client = CreateClient(new FailingHandler());
+        var criterionId = Guid.NewGuid();
+
+        ApiError?[] errors =
+        [
+            (await client.GetAcceptanceCriterionVerificationAsync(ProjectId, ProposalId, criterionId)).Error,
+            (await client.SaveAcceptanceCriterionVerificationAsync(ProjectId, ProposalId, criterionId, "failed", null, "\"v1\"")).Error,
+            (await client.VerifySpecificationAsync(ProjectId, ProposalId, "\"v1\"")).Error
+        ];
+
+        Assert.All(errors, error =>
+        {
+            Assert.NotNull(error);
+            Assert.Null(error.StatusCode);
+        });
+    }
+
     private static HttpResponseMessage WithEntityTag(HttpResponseMessage response, string entityTag)
     {
         response.Headers.ETag = System.Net.Http.Headers.EntityTagHeaderValue.Parse(entityTag);

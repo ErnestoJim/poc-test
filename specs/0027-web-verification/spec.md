@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 16 de octubre de 2026.
+Implementada y verificada el 16 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -231,4 +231,57 @@ Son cambios internos de `SpecFlow.Web`; no afectan a la API.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlowApiClient` añade la consulta y el registro de la verificación de un
+  criterio, con el nuevo `AcceptanceCriterionVerificationDto`, y la transición
+  a `verified`. `AcceptanceCriteriaSection` muestra resultados, resumen y
+  formulario; `SpecificationDetail` añade «Marcar como verificada» a las
+  transiciones de la 0026. No cambian la API, OpenAPI, el dominio ni el
+  esquema.
+- Cuatro pruebas nuevas del cliente HTTP (ocho casos): rutas, `GET` sin cuerpo,
+  `PUT` con evidencia exacta y con `null` explícito, `If-Match` literal, ETag
+  propio de la verificación, transición sin cuerpo con fecha y ETag,
+  clasificación de `400` (`evidence`), `404`, `409`, `412` y `428`, y fallos
+  de conexión.
+- Navegador con API real y SQLite temporal, con especificaciones llevadas
+  desde la web de `draft` a `implemented`:
+  - Sin verificar: «Criterios pendientes de cumplir: 1, 2 y 3» y «Marcar como
+    verificada» respondió `409` con el requisito explicado.
+  - Al abrir el registro, «Guardar verificación» está deshabilitado sin
+    cambios, la evidencia está deshabilitada con «Sin verificar» y solo queda
+    habilitado «Cancelar» en toda la vista. Evidencia de solo espacios y de
+    10.001 caracteres: error junto al campo con `aria-invalid="true"` y texto
+    conservado. «Cancelar» con cambios pidió confirmación.
+  - «Cumple» con evidencia, «Cumple» sin evidencia y «No cumple» con evidencia;
+    la API guardó exactamente lo enviado, con `null` cuando no había
+    evidencia. Volver a «Sin verificar» con texto en el campo avisó de que no
+    se guardaría y la API guardó `null`. El resumen pasó por «Criterio
+    pendiente de cumplir: 3» hasta «Todos los criterios cumplen».
+  - `412` con la verificación cambiada por la API: ambas verificaciones a la
+    vista; «Guardar mi verificación» guardó la propia y «Descartar mi
+    verificación» adoptó la guardada.
+  - Especificación verificada por la API durante un registro: `409`, estado
+    «Verificada», criterios en modo de lectura y la verificación no guardada
+    visible como texto.
+  - API detenida al guardar: formulario y botones deshabilitados con
+    «Consultar estado actual» como única acción; tras reiniciar, «no se
+    guardó» con la comparación de `412`, y «se guardó correctamente» cuando la
+    API ya tenía la verificación enviada.
+  - Recorrido completo desde la web: registrar todos los criterios como
+    «Cumple» y «Marcar como verificada» respondió `200`, con «Verificada», su
+    fecha y criterios en modo de lectura. Ningún paso respondió `412`.
+- Corrección durante la verificación: tras un `412`, aparecía un bloque vacío
+  de «Texto de criterio no guardado», porque la verificación local se había
+  añadido al texto de edición que la sección traslada fuera de `draft` en cada
+  renderizado. La verificación tiene ahora su propio texto no guardado y solo
+  se incluye al perder el contexto.
+- Desviación del plan: como en la 0025, no se reprodujo en navegador un fallo
+  aislado de la consulta de verificaciones con el resto de la vista
+  disponible; la carga se hace justo después del listado de criterios.
+- Revisión de idioma: los textos nuevos están en español, incluidos los
+  resultados, las etiquetas accesibles y los avisos.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 531 pruebas correctas (127 de dominio,
+  339 de integración y 65 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

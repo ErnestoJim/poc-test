@@ -86,6 +86,13 @@ h3 { font-size: 1.05rem; }
 .status.in_progress { background: #e4edf8; color: #355d8b; }
 .status.completed { background: #e4f4e5; color: #316e42; }
 .status.verified { background: #e6e7f9; color: #514ba0; }
+.status.passed { background: #e4f4e5; color: #316e42; }
+.status.failed { background: #fbe8e4; color: #a0493d; }
+.status.unverified { background: #eff1ef; color: #5c6b60; }
+.criterion-verification { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 10px; }
+.criterion-verification .task-dates { margin: 0; }
+.verification-evidence { padding-left: 12px; border-left: 3px solid #e1e8e0; color: #4d5f78; }
+.verification-option { display: inline-flex; align-items: center; gap: 8px; margin: 0 18px 8px 0; cursor: pointer; }
 .status.large { font-size: .88rem; padding: 8px 14px; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(250px, 1fr); gap: 18px; }
 .detail-card h2 { font-size: 1.1rem; margin-bottom: 22px; }
