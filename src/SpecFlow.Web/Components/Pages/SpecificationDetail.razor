@@ -186,6 +186,7 @@ else if (proposal is not null)
                                        OnContextLost="HandleSectionContextLost" />
 
             <ImplementationTasksSection ProjectId="proposal.ProjectId" ProposalId="proposal.Id" Specification="specification"
+                                        SpecificationEntityTag="@entityTag"
                                         Locked="@(ContentLocked || criteriaActive)"
                                         OnActiveChanged="active => tasksActive = active"
                                         ReloadSpecification="ReloadSpecificationAsync"

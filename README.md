@@ -78,8 +78,10 @@ se listan sus criterios de aceptación; en borrador puedes añadirlos, editarlos
 eliminarlos tras confirmación y moverlos con «Subir» y «Bajar». Las tareas de
 implementación se gestionan igual mientras la especificación está en borrador;
 una vez aprobada, cada tarea puede iniciarse y completarse tras confirmación.
-Los vínculos entre criterios y tareas y el resto del ciclo de vida de
-especificaciones siguen gestionándose por la API.
+Cada tarea indica qué criterios cubre y, en borrador, la sección resume los
+criterios que aún no tienen tarea; «Vincular criterios» permite elegirlos con
+casillas y guarda la selección completa. El resto del ciclo de vida de
+especificaciones sigue gestionándose por la API.
 
 La web llama a la API desde su servidor. Para usar otra dirección, configura
 `SpecFlowApi__BaseUrl` en el proceso web; en desarrollo vale por defecto

@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aprobada para implementación el 16 de octubre de 2026.
+Implementada y verificada el 16 de octubre de 2026, tras su aprobación.
 
 ## Base documental
 
@@ -209,4 +209,52 @@ Son cambios internos de `SpecFlow.Web`; no afectan a la API.
 
 ## Evidencia de cierre
 
-Pendiente de implementación y verificación.
+- `SpecFlowApiClient` añade la consulta y la sustitución de los criterios de
+  una tarea con el nuevo `TaskAcceptanceCriteriaDto`. `ImplementationTasksSection`
+  calcula la cobertura a partir del listado de criterios y de los vínculos de
+  cada tarea, y recibe el ETag de la especificación para releerla cuando cambia
+  el plan. No cambian la API, OpenAPI, el dominio ni el esquema.
+- Tres pruebas nuevas del cliente HTTP (siete casos): ruta, `GET` sin cuerpo con
+  ETag, `PUT` con la lista completa y con la lista vacía, `If-Match` literal,
+  ETag en `204`, clasificación de `400` (`acceptanceCriterionIds`), `404`,
+  `409`, `412` y `428`, y fallos de conexión.
+- Navegador con API real y SQLite temporal:
+  - Sin vínculos: «Criterios sin tarea: 1, 2 y 3» y «No cubre ningún criterio»
+    en cada tarea. Al vincular los criterios 1 y 3, «Cubre los criterios 1 y 3»
+    y «Criterio sin tarea: 2». Las casillas muestran número y texto en su
+    etiqueta.
+  - «Guardar vínculos» deshabilitado sin cambios; «Cancelar» con cambios pidió
+    confirmación. Mientras se eligen criterios, solo queda habilitado
+    «Cancelar» en toda la vista, incluidos contenido, criterios y alta de
+    tareas. Desmarcar todo y guardar dejó la tarea sin criterios.
+  - Tras guardar vínculos, editar el contenido y un criterio guardó a la
+    primera, sin `412`.
+  - Subir el criterio 3 cambió la cobertura a «Cubre los criterios 1 y 2» y
+    eliminar el criterio 1 a «Cubre el criterio 1», sin recargar.
+  - `412` con los vínculos cambiados por la API: se mostró la selección guardada
+    junto a la propia y «Guardar mi selección» la guardó.
+  - `404` con un criterio elegido eliminado por la API: la selección siguió
+    abierta sin él y se guardó después. Si el resto ya coincidía con lo
+    guardado, la selección se cerró informando.
+  - Aprobación por la API con una selección abierta: `409`, tareas en modo de
+    lectura con su cobertura y la selección no guardada visible como texto.
+  - API detenida al guardar: bloqueo y «Consultar estado actual»; tras
+    reiniciar, «no se guardó» con la comparación de `412`, y «se guardaron
+    correctamente» cuando la API ya tenía la selección enviada.
+  - Extremo a extremo: en una especificación nueva se cubrieron todos los
+    criterios desde la web y la aprobación por la API respondió `200`.
+- Corrección durante la verificación: mientras se esperaba la consulta de
+  estado tras perder la conexión, «Guardar vínculos» seguía pareciendo
+  habilitado, aunque no reenviaba. Ahora las casillas y los botones de la
+  selección se deshabilitan hasta consultar el estado.
+- Desviación del plan: no se reprodujo en navegador un fallo aislado de la
+  consulta de vínculos con el resto de la vista disponible, porque se carga
+  justo después del listado de tareas y la API detenida hace fallar antes la
+  vista entera. El aviso con «Reintentar» comparte la carga de cobertura
+  verificada en los demás recorridos.
+- `dotnet build SpecFlow.slnx --no-restore`: correcto, 0 warnings.
+- `dotnet test SpecFlow.slnx --no-build`: 516 pruebas correctas (127 de dominio,
+  339 de integración y 50 web).
+- `dotnet format SpecFlow.slnx --verify-no-changes --no-restore` y
+  `git diff --check`: correctos.
+- `dotnet ef migrations has-pending-model-changes`: sin cambios del modelo.

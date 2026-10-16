@@ -277,6 +277,31 @@ public sealed class SpecFlowApiClient(HttpClient httpClient)
             cancellationToken,
             entityTag);
 
+    public Task<ApiResult<TaskAcceptanceCriteriaDto>> GetTaskAcceptanceCriteriaAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TaskAcceptanceCriteriaDto>(
+            HttpMethod.Get,
+            $"{ImplementationTasksPath(projectId, proposalId)}/{taskId}/acceptance-criteria",
+            null,
+            cancellationToken);
+
+    public Task<ApiResult<bool>> ReplaceTaskAcceptanceCriteriaAsync(
+        Guid projectId,
+        Guid proposalId,
+        Guid taskId,
+        IReadOnlyList<Guid> acceptanceCriterionIds,
+        string entityTag,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<bool>(
+            HttpMethod.Put,
+            $"{ImplementationTasksPath(projectId, proposalId)}/{taskId}/acceptance-criteria",
+            new { acceptanceCriterionIds },
+            cancellationToken,
+            entityTag);
+
     private static string ImplementationTasksPath(Guid projectId, Guid proposalId) =>
         $"/api/projects/{projectId}/proposals/{proposalId}/specification/tasks";
 

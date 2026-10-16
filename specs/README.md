@@ -84,7 +84,7 @@ implementación.
 | [0022](0022-web-form-field-errors/spec.md) | Errores de campo accesibles en los formularios web | Implementada |
 | [0023](0023-web-acceptance-criteria/spec.md) | Gestionar criterios de aceptación desde la interfaz web | Implementada |
 | [0024](0024-web-implementation-tasks/spec.md) | Gestionar tareas de implementación desde la interfaz web | Implementada |
-| [0025](0025-web-criterion-task-links/spec.md) | Vincular criterios y tareas desde la interfaz web | Aprobada para implementación |
+| [0025](0025-web-criterion-task-links/spec.md) | Vincular criterios y tareas desde la interfaz web | Implementada |
 
 ## Crear la siguiente spec
 

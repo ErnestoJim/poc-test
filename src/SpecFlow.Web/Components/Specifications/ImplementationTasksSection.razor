@@ -32,6 +32,18 @@
         <p class="section-hint">Termina la edición en curso para modificar las tareas.</p>
     }
 
+    @if (coverageError is not null && tasks is { Count: > 0 })
+    {
+        <div class="notice error" role="alert">
+            <p>No se pudo consultar qué criterios cubre cada tarea. @coverageError.Message</p>
+            <button class="button subtle" @onclick="LoadCoverageAsync" disabled="@loadingCoverage">Reintentar</button>
+        </div>
+    }
+    else if (Specification.Status == "draft" && criteria is not null && links is not null)
+    {
+        <p class="coverage-summary @(UncoveredNumbers.Count == 0 ? "covered" : "uncovered")">@CoverageSummary</p>
+    }
+
     @if (loadingList)
     {
         <p class="notice">Cargando tareas…</p>
@@ -149,8 +161,66 @@
                                     }
                                 </p>
                             }
+                            @if (CoverageText(task.Id) is { } coverage)
+                            {
+                                <p class="task-coverage">@coverage</p>
+                            }
 
-                            @if (confirmDeleteId == task.Id)
+                            @if (linkingId == task.Id)
+                            {
+                                <form class="criterion-form task-links" @onsubmit="SaveLinksAsync" @onsubmit:preventDefault>
+                                    @if (linkSavedVersion is not null)
+                                    {
+                                        <div class="saved-version criterion-saved-version">
+                                            <p><strong>Selección guardada actual</strong>: @SelectionText(linkSavedVersion). Tu selección sigue marcada sin guardar.</p>
+                                        </div>
+                                    }
+                                    <fieldset disabled="@LinksLocked">
+                                        <legend>Criterios que cubre la tarea @(position + 1)</legend>
+                                        @if (criteria is { Count: 0 })
+                                        {
+                                            <p class="section-hint">Todavía no hay criterios que vincular.</p>
+                                        }
+                                        @foreach (var (criterion, criterionIndex) in (criteria ?? []).Select((c, i) => (c, i)))
+                                        {
+                                            var criterionId = criterion.Id;
+                                            <label class="link-option" @key="criterionId">
+                                                <input type="checkbox" checked="@linkSelection.Contains(criterionId)"
+                                                       @onchange="e => ToggleCriterion(criterionId, e.Value is true)" />
+                                                <span class="criterion-number">@(criterionIndex + 1)</span>
+                                                <span class="criterion-content">@criterion.Content</span>
+                                            </label>
+                                        }
+                                    </fieldset>
+                                    @if (confirmDiscard)
+                                    {
+                                        <div class="notice" role="alert">
+                                            <p>¿Descartar la selección sin guardar?</p>
+                                            <div class="form-actions">
+                                                <button class="button primary" type="button" @onclick="DiscardLinks">Descartar cambios</button>
+                                                <button class="button subtle" type="button" @onclick="() => confirmDiscard = false">Seguir eligiendo</button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="form-actions">
+                                            <button class="button primary" type="submit" disabled="@(LinksLocked || !HasLinkChanges)">
+                                                @(sending ? "Guardando…" : linkSavedVersion is not null ? "Guardar mi selección" : "Guardar vínculos")
+                                            </button>
+                                            @if (linkSavedVersion is not null)
+                                            {
+                                                <button class="button subtle" type="button" @onclick="DiscardLinks" disabled="@LinksLocked">Descartar mi selección</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="button subtle" type="button" @onclick="CancelLinks" disabled="@LinksLocked">Cancelar</button>
+                                            }
+                                        </div>
+                                    }
+                                </form>
+                            }
+                            else if (confirmDeleteId == task.Id)
                             {
                                 <div class="notice" role="alert">
                                     <p>¿Eliminar esta tarea? También se eliminarán sus vínculos con criterios, si los tiene.</p>
@@ -185,6 +255,9 @@
                                             disabled="@(ActionsLocked || position == tasks.Count - 1)" aria-label="@($"Bajar tarea {position + 1}")">Bajar</button>
                                     <button class="button subtle small" type="button" @onclick="() => StartEditAsync(task)"
                                             disabled="@(ActionsLocked || HasNewText)" aria-label="@($"Editar tarea {position + 1}")">Editar</button>
+                                    <button class="button subtle small" type="button" @onclick="() => StartLinksAsync(task.Id)"
+                                            disabled="@(ActionsLocked || HasNewText || criteria is null || links is null)"
+                                            aria-label="@($"Vincular criterios a la tarea {position + 1}")">Vincular criterios</button>
                                     <button class="button subtle small" type="button" @onclick="() => ConfirmDelete(task.Id)"
                                             disabled="@ActionsLocked" aria-label="@($"Eliminar tarea {position + 1}")">Eliminar</button>
                                 </div>
@@ -254,6 +327,15 @@
             <p class="criterion-content">@unsavedText</p>
         </section>
     }
+
+    @if (unsavedLinks is not null)
+    {
+        <section class="detail-card unsaved-content" aria-label="Selección de criterios no guardada">
+            <h3>Selección de criterios no guardada</h3>
+            <p>No se pudo guardar. Puedes anotarla antes de salir.</p>
+            <p class="criterion-content">@unsavedLinks</p>
+        </section>
+    }
 </section>
 
 @code {
@@ -261,13 +343,16 @@
     [Parameter, EditorRequired] public Guid ProposalId { get; set; }
     [Parameter, EditorRequired] public SpecificationDto Specification { get; set; } = default!;
 
+    // Changes whenever anything in the plan changes, including criteria and links edited elsewhere.
+    [Parameter] public string? SpecificationEntityTag { get; set; }
+
     // True while another part of the page has an edit, a request or a recovery in progress.
     [Parameter] public bool Locked { get; set; }
     [Parameter] public EventCallback<bool> OnActiveChanged { get; set; }
     [Parameter, EditorRequired] public Func<Task<ApiResult<SpecificationDto>>> ReloadSpecification { get; set; } = default!;
     [Parameter] public EventCallback<AcceptanceCriteriaSection.ContextLost> OnContextLost { get; set; }
 
-    private enum Operation { Add, Edit, Delete, Reorder, Start, Complete }
+    private enum Operation { Add, Edit, Delete, Reorder, Start, Complete, Link }
 
     private sealed record TaskText(string Title, string? Description);
 
@@ -278,6 +363,20 @@
     private string? listEntityTag;
     private ApiError? listError;
     private bool loadingList;
+
+    private List<AcceptanceCriterionDto>? criteria;
+    private Dictionary<Guid, IReadOnlyList<Guid>>? links;
+    private ApiError? coverageError;
+    private bool loadingCoverage;
+    private string? coverageTag;
+    private int coverageVersion;
+
+    private Guid? linkingId;
+    private HashSet<Guid> linkSelection = [];
+    private HashSet<Guid> linkBaseline = [];
+    private string? linkEntityTag;
+    private HashSet<Guid>? linkSavedVersion;
+    private List<Guid>? sentLinks;
 
     private string? newTitle;
     private string? newDescription;
@@ -306,19 +405,24 @@
     private string? notice;
     private ApiError? noticeError;
     private string? unsavedText;
+    private string? unsavedLinks;
     private bool reportedActive;
 
     private bool Busy => sending || refreshing;
     private bool Planning => Specification.Status == "draft" && !Locked && pending is null;
     private bool Executing => Specification.Status == "approved" && !Locked && pending is null;
     private bool HasNewText => !string.IsNullOrEmpty(newTitle) || !string.IsNullOrEmpty(newDescription);
-    private bool AddLocked => Busy || editingId is not null || pending is not null;
-    private bool ActionsLocked => Busy || editingId is not null || confirmDeleteId is not null || confirmTransitionId is not null;
+    private bool AddLocked => Busy || editingId is not null || linkingId is not null || pending is not null;
+    private bool ActionsLocked => Busy || editingId is not null || linkingId is not null ||
+        confirmDeleteId is not null || confirmTransitionId is not null;
+    // Nothing is resent while the outcome of a link save is unknown.
+    private bool LinksLocked => Busy || pending is not null;
+    private bool HasLinkChanges => linkingId is not null && !linkSelection.SetEquals(linkBaseline);
     private bool HasEditChanges => editingId is { } id && tasks?.FirstOrDefault(t => t.Id == id) is { } saved &&
         (!string.Equals(editTitle, saved.Title, StringComparison.Ordinal) ||
          !string.Equals(Normalize(editDescription), saved.Description, StringComparison.Ordinal));
-    private bool Active => editingId is not null || confirmDeleteId is not null || confirmTransitionId is not null ||
-        Busy || pending is not null || HasNewText;
+    private bool Active => editingId is not null || linkingId is not null || confirmDeleteId is not null ||
+        confirmTransitionId is not null || Busy || pending is not null || HasNewText;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -326,6 +430,11 @@
         {
             loadedFor = Specification.Id;
             await LoadListAsync();
+        }
+        else if (SpecificationEntityTag != coverageTag && !Busy && !loadingList && tasks is not null)
+        {
+            // The plan changed outside this section, for example a criterion deleted or reordered.
+            await LoadCoverageAsync();
         }
 
         if (Specification.Status != "draft")
@@ -369,6 +478,46 @@
         finally
         {
             loadingList = false;
+        }
+
+        if (tasks is not null && listError is null)
+        {
+            await LoadCoverageAsync();
+        }
+    }
+
+    // Coverage is computed here from the criteria list and the links of every task.
+    private async Task LoadCoverageAsync()
+    {
+        if (tasks is not { } currentTasks) return;
+        var version = ++coverageVersion;
+        coverageTag = SpecificationEntityTag;
+        loadingCoverage = true;
+        try
+        {
+            var criteriaResult = await Api.ListAcceptanceCriteriaAsync(ProjectId, ProposalId);
+            var linkResults = await Task.WhenAll(currentTasks.Select(async task =>
+                (task.Id, Result: await Api.GetTaskAcceptanceCriteriaAsync(ProjectId, ProposalId, task.Id))));
+            if (version != coverageVersion) return;
+
+            var failure = criteriaResult.Error ?? linkResults.Select(r => r.Result.Error).FirstOrDefault(e => e is not null);
+            if (criteriaResult.Value is not { } currentCriteria || failure is not null)
+            {
+                coverageError = failure ?? criteriaResult.Error;
+                links = null;
+                return;
+            }
+
+            criteria = currentCriteria;
+            links = linkResults.ToDictionary(r => r.Id, r => r.Result.Value!.AcceptanceCriterionIds);
+            coverageError = null;
+        }
+        finally
+        {
+            if (version == coverageVersion)
+            {
+                loadingCoverage = false;
+            }
         }
     }
 
@@ -690,6 +839,185 @@
         }
     }
 
+    private async Task StartLinksAsync(Guid taskId)
+    {
+        if (!Planning || ActionsLocked || HasNewText || criteria is null || links is null) return;
+        sending = true;
+        ClearNotice();
+        try
+        {
+            var result = await Api.GetTaskAcceptanceCriteriaAsync(ProjectId, ProposalId, taskId);
+            if (result.Value is not { } current || result.EntityTag is null)
+            {
+                if (result.Error?.StatusCode == 404)
+                {
+                    await HandleMissingAsync(null);
+                    return;
+                }
+
+                notice = "No se pudieron consultar los criterios de la tarea.";
+                noticeError = result.Error;
+                return;
+            }
+
+            linkingId = taskId;
+            linkBaseline = [.. current.AcceptanceCriterionIds];
+            linkSelection = [.. linkBaseline];
+            linkEntityTag = result.EntityTag;
+            linkSavedVersion = null;
+            confirmDiscard = false;
+            if (!links.TryGetValue(taskId, out var listed) || !linkBaseline.SetEquals(listed))
+            {
+                links[taskId] = current.AcceptanceCriterionIds;
+                notice = "Los criterios de la tarea cambiaron desde que se cargó la vista. Se muestran los actuales.";
+            }
+        }
+        finally
+        {
+            sending = false;
+        }
+    }
+
+    private void ToggleCriterion(Guid criterionId, bool selected)
+    {
+        confirmDiscard = false;
+        if (selected)
+        {
+            linkSelection.Add(criterionId);
+        }
+        else
+        {
+            linkSelection.Remove(criterionId);
+        }
+    }
+
+    private void CancelLinks()
+    {
+        if (HasLinkChanges)
+        {
+            confirmDiscard = true;
+            return;
+        }
+
+        ExitLinks();
+    }
+
+    private void DiscardLinks()
+    {
+        ExitLinks();
+        ClearNotice();
+    }
+
+    private void ExitLinks()
+    {
+        linkingId = null;
+        linkSelection = [];
+        linkBaseline = [];
+        linkEntityTag = null;
+        linkSavedVersion = null;
+        confirmDiscard = false;
+    }
+
+    private async Task SaveLinksAsync()
+    {
+        if (linkingId is not { } id || linkEntityTag is null || !Planning || Busy || !HasLinkChanges) return;
+        BeginSend(Operation.Link, null, id);
+        // Sent in the order the criteria are shown; the API treats the list as a set.
+        sentLinks = OrderedSelection(linkSelection);
+        try
+        {
+            var result = await Api.ReplaceTaskAcceptanceCriteriaAsync(ProjectId, ProposalId, id, sentLinks, linkEntityTag);
+            if (result.IsSuccess)
+            {
+                ExitLinks();
+                await AfterChangeAsync("Vínculos guardados.");
+                return;
+            }
+
+            switch (result.Error?.StatusCode)
+            {
+                case 412:
+                    pending = Operation.Link;
+                    notice = "Los criterios de la tarea cambiaron desde que empezaste a elegirlos. Consultando la selección actual…";
+                    break;
+                case 404:
+                    await HandleLinkTargetMissingAsync(id);
+                    return;
+                default:
+                    await HandleFailureAsync(Operation.Link, result.Error);
+                    return;
+            }
+        }
+        finally
+        {
+            sending = false;
+        }
+
+        await RecoverAsync();
+    }
+
+    // The API checks that every criterion exists before If-Match, so a criterion deleted meanwhile answers 404.
+    private async Task HandleLinkTargetMissingAsync(Guid taskId)
+    {
+        var specification = await ReloadSpecification();
+        if (specification.Value is null)
+        {
+            if (specification.Error?.StatusCode == 404)
+            {
+                await OnContextLost.InvokeAsync(new AcceptanceCriteriaSection.ContextLost(specification.Error, LinkText()));
+                return;
+            }
+
+            pending = Operation.Link;
+            notice = "No se pudo comprobar el estado actual de la especificación.";
+            noticeError = specification.Error;
+            return;
+        }
+
+        await LoadListAsync();
+        if (tasks?.Any(t => t.Id == taskId) != true)
+        {
+            ExitLinks();
+            notice = "La tarea ya no existe. Se muestra el listado actual.";
+            return;
+        }
+
+        if (criteria is null)
+        {
+            pending = Operation.Link;
+            notice = "No se pudo consultar el listado actual de criterios.";
+            noticeError = coverageError;
+            return;
+        }
+
+        var existing = criteria.Select(c => c.Id).ToHashSet();
+        var expectedSaved = linkBaseline.Where(existing.Contains).ToHashSet();
+        linkSelection.IntersectWith(existing);
+        var fresh = await Api.GetTaskAcceptanceCriteriaAsync(ProjectId, ProposalId, taskId);
+        if (fresh.Value is null || fresh.EntityTag is null)
+        {
+            pending = Operation.Link;
+            notice = "No se pudo consultar la selección actual de la tarea.";
+            noticeError = fresh.Error;
+            return;
+        }
+
+        linkEntityTag = fresh.EntityTag;
+        linkBaseline = [.. fresh.Value.AcceptanceCriterionIds];
+        if (!linkBaseline.SetEquals(expectedSaved))
+        {
+            linkSavedVersion = [.. linkBaseline];
+        }
+
+        notice = linkSelection.SetEquals(linkBaseline)
+            ? "Alguno de los criterios elegidos ya no existe y la tarea ya tiene el resto de tu selección."
+            : "Alguno de los criterios elegidos ya no existe. Se ha quitado de tu selección; revísala antes de guardarla.";
+        if (linkSelection.SetEquals(linkBaseline))
+        {
+            ExitLinks();
+        }
+    }
+
     private void BeginSend(Operation operation, TaskText? text, Guid? taskId)
     {
         sending = true;
@@ -767,6 +1095,10 @@
                 await LoadListAsync();
                 notice = "La tarea ya cambió de estado. Se muestra su estado actual.";
                 break;
+            case Operation.Link:
+                pending = Operation.Link;
+                notice = "No se pudieron guardar los vínculos. Consulta el estado actual antes de intentarlo de nuevo.";
+                break;
             default:
                 await LoadListAsync();
                 notice = "El listado de tareas cambió. Revisa el listado actual.";
@@ -781,7 +1113,7 @@
         {
             if (specification.Error?.StatusCode == 404)
             {
-                await OnContextLost.InvokeAsync(new AcceptanceCriteriaSection.ContextLost(specification.Error, localText ?? LocalText()));
+                await OnContextLost.InvokeAsync(new AcceptanceCriteriaSection.ContextLost(specification.Error, localText ?? LocalText() ?? LinkText()));
                 return;
             }
 
@@ -804,7 +1136,7 @@
     {
         if (error?.StatusCode == 404)
         {
-            await OnContextLost.InvokeAsync(new AcceptanceCriteriaSection.ContextLost(error, LocalText()));
+            await OnContextLost.InvokeAsync(new AcceptanceCriteriaSection.ContextLost(error, LocalText() ?? LinkText()));
             return;
         }
 
@@ -839,9 +1171,10 @@
             listEntityTag = list.EntityTag;
             listError = null;
             pending = null;
+            await LoadCoverageAsync();
             notice = await ResolveRecoveryAsync(operation, currentTasks);
 
-            if (current.Status != "draft" && operation is Operation.Add or Operation.Edit or Operation.Delete or Operation.Reorder)
+            if (current.Status != "draft" && operation is Operation.Add or Operation.Edit or Operation.Delete or Operation.Reorder or Operation.Link)
             {
                 MoveLocalTextToUnsaved();
                 notice = $"{notice} La especificación ya no está en borrador y su planificación se muestra en modo de lectura.";
@@ -900,6 +1233,9 @@
                     ? "La tarea no se eliminó. Puedes intentarlo de nuevo."
                     : "La tarea se eliminó correctamente.";
 
+            case Operation.Link:
+                return await ResolveLinkRecoveryAsync(current);
+
             case Operation.Start or Operation.Complete:
                 var expected = operation == Operation.Start ? "in_progress" : "completed";
                 return current.FirstOrDefault(t => t.Id == targetId)?.Status == expected
@@ -911,6 +1247,52 @@
                     ? "El nuevo orden se guardó correctamente."
                     : "El orden no cambió. Revisa el listado actual.";
         }
+    }
+
+    private async Task<string> ResolveLinkRecoveryAsync(List<ImplementationTaskDto> current)
+    {
+        if (targetId is not { } id || current.All(t => t.Id != id))
+        {
+            unsavedLinks = linkingId is not null ? LinkText() : null;
+            ExitLinks();
+            return "La tarea ya no existe. Tu selección no se guardó.";
+        }
+
+        var fresh = await Api.GetTaskAcceptanceCriteriaAsync(ProjectId, ProposalId, id);
+        if (fresh.Value is null || fresh.EntityTag is null)
+        {
+            pending = Operation.Link;
+            noticeError = fresh.Error;
+            return "No se pudo consultar la selección actual de la tarea. Tu selección sigue marcada.";
+        }
+
+        var saved = fresh.Value.AcceptanceCriterionIds.ToHashSet();
+        if (sentLinks is not null && saved.SetEquals(sentLinks))
+        {
+            ExitLinks();
+            return "Los vínculos se guardaron correctamente.";
+        }
+
+        if (linkingId != id)
+        {
+            return "Los vínculos no se guardaron. Revisa los criterios actuales de la tarea.";
+        }
+
+        linkEntityTag = fresh.EntityTag;
+        linkBaseline = saved;
+        if (criteria is not null)
+        {
+            linkSelection.IntersectWith(criteria.Select(c => c.Id));
+        }
+
+        if (linkSelection.SetEquals(saved))
+        {
+            ExitLinks();
+            return "La tarea ya tiene los criterios que elegiste.";
+        }
+
+        linkSavedVersion = [.. saved];
+        return "Tu selección no se guardó. Compárala con la selección guardada y decide si guardas la tuya.";
     }
 
     private async Task ReloadAllAsync()
@@ -952,12 +1334,84 @@
             unsavedText = local;
         }
 
+        if (linkingId is not null)
+        {
+            unsavedLinks = LinkText();
+        }
+
         newTitle = null;
         newDescription = null;
         addError = null;
         confirmDeleteId = null;
         ExitEdit();
+        ExitLinks();
     }
+
+    // Numbers are only for display: they follow the order of the criteria section and are never sent.
+    private List<int> CriterionNumbers(IEnumerable<Guid> ids)
+    {
+        var selected = ids.ToHashSet();
+        return (criteria ?? []).Select((c, i) => (c.Id, Number: i + 1))
+            .Where(c => selected.Contains(c.Id))
+            .Select(c => c.Number)
+            .ToList();
+    }
+
+    private List<Guid> OrderedSelection(IReadOnlySet<Guid> selection) =>
+        (criteria ?? []).Select(c => c.Id).Where(selection.Contains).ToList();
+
+    private List<int> UncoveredNumbers => criteria is null || links is null
+        ? []
+        : CriterionNumbers(criteria.Select(c => c.Id).Where(id => !links.Values.Any(l => l.Contains(id))));
+
+    private string CoverageSummary => criteria switch
+    {
+        { Count: 0 } => "Todavía no hay criterios que cubrir.",
+        _ when UncoveredNumbers is { Count: 0 } => "Todos los criterios tienen al menos una tarea.",
+        _ when UncoveredNumbers is { Count: 1 } single => $"Criterio sin tarea: {single[0]}.",
+        _ => $"Criterios sin tarea: {JoinNumbers(UncoveredNumbers)}."
+    };
+
+    private string? CoverageText(Guid taskId)
+    {
+        if (criteria is null || links is null || !links.TryGetValue(taskId, out var linked)) return null;
+        var numbers = CriterionNumbers(linked);
+        return numbers.Count switch
+        {
+            0 => "No cubre ningún criterio.",
+            1 => $"Cubre el criterio {numbers[0]}.",
+            _ => $"Cubre los criterios {JoinNumbers(numbers)}."
+        };
+    }
+
+    private string SelectionText(IReadOnlySet<Guid> selection)
+    {
+        var numbers = CriterionNumbers(selection);
+        return numbers.Count switch
+        {
+            0 => "ningún criterio",
+            1 => $"criterio {numbers[0]}",
+            _ => $"criterios {JoinNumbers(numbers)}"
+        };
+    }
+
+    private string? LinkText()
+    {
+        if (linkingId is not { } id) return null;
+        var position = tasks?.FindIndex(t => t.Id == id) ?? -1;
+        var title = position >= 0 ? tasks![position].Title : "la tarea";
+        var chosen = (criteria ?? []).Select((c, i) => (c, i))
+            .Where(c => linkSelection.Contains(c.c.Id))
+            .Select(c => $"{c.i + 1}. {c.c.Content}")
+            .ToList();
+        return chosen.Count == 0
+            ? $"{title}: sin criterios."
+            : $"{title}:\n{string.Join("\n", chosen)}";
+    }
+
+    private static string JoinNumbers(IReadOnlyList<int> numbers) => numbers.Count == 1
+        ? numbers[0].ToString(System.Globalization.CultureInfo.InvariantCulture)
+        : $"{string.Join(", ", numbers.Take(numbers.Count - 1))} y {numbers[^1]}";
 
     private void ClearNotice()
     {
